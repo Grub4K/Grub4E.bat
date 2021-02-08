@@ -6,17 +6,25 @@
 ::
 :: Changelog
 ::
-:: 0.2.1
-::   - Create debug mode
+:: 0.3
+::   - implement fading
+::   - move keybind loading
+::   - Check hard collision map before movement
+::   - renderFont macro
+::   - changed naming of session folder
+::   - move action event setup to keybind loading
+::   - added additional info for debug mode
+::   - Use @ convention for macros
 ::
-:: 0.2.0
+:: 0.2
+::   - Create debug mode
 ::   - Implement map loading
 ::   - Implement limited fontset loading
 ::   - Implement fontset rendering
 ::   - Implement action events
 ::   - Move macro definition to subroutine
 ::
-:: 0.1.0
+:: 0.1
 ::   - Initial
 ::
 :: This Source Code Form is subject to the terms of the Mozilla Public
@@ -33,7 +41,7 @@ if "%~1" == "startController" goto :controller
 setlocal disableDelayedExpansion
 set "DEBUG="
 if "%~1" == "-DEBUG" set "DEBUG=1"
-
+pause
 color F0
 mode 114,114
 goto :getSession
@@ -82,11 +90,6 @@ for %%s in ( %HEX% ) do (
     set "spriteset[FF]_%%s=                "
 )
 
-set "action_state=map"
-set "action_events= up down left right menu confirm cancel "
-
-
-
 :: DONE SETTING UP ENGINE
 
 :: TODO load keybinds from file
@@ -102,29 +105,36 @@ call :load_spriteset data\spriteset.txt
 title [Grub4E] Loading... [ Map      ]
 call :load_map data\map.txt
 
-set /a "viewport_x=0, viewport_y=0"
+set /a "viewport_x=1, viewport_y=1"
 set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
 
 title [Grub4E] !gametitle!
 if defined DEBUG (
     set "temp=DEBUG"
-    call :renderfont temp debug_line
+    %@renderFont% temp debug_line
     set "temp="
-    set "debug_overlay[0]=########"
-    set "debug_overlay[1]=#CS/f: #"
-    set "debug_overlay[3]=#FPS:  #"
-    set "debug_overlay[5]=#State:#"
-    set "debug_overlay[7]=########"
+    set "debug_overlay[0]=###########"
+    set "debug_overlay[1]=#CS/f:    #"
+    set "debug_overlay[3]=#FPS:     #"
+    set "debug_overlay[5]=#State:   #"
+    set "debug_overlay[7]=###########"
     set "keybind[debug]=#"
-    set "action_events=!action_events! debug "
+    set "action_events=!action_events! transition debug "
     set "debug_overlay=0"
-    title [Grub4E:debug] !gametitle!
+    set "keybind[transition]=x"
+    title [Grub4E] DEBUG:!gametitle!
 )
 
-%sendCmd% go
-for /L %%. in ( infinite ) do (
-    %= CALCULATE FPS AND DISPLAY IN TITLE =%
+set "overCount=0"
+set "action_state=fadein"
+set "action_state_next=map"
 
+%@sendCmd% go
+for /L %%. in ( infinite ) do (
+    %= CALCULATE TIME DIFFERENCE AND FPS =%
+    for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
+        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
+    )
     %= DRAW THE SCREEN =%
     %=TODO    implement partial redraws %
     %=         - skip background recalculation %
@@ -149,21 +159,68 @@ for /L %%. in ( infinite ) do (
         )
     )
 
-    if defined DEBUG %drawover% 93 106 19 5 debug_line
-    if "!debug_overlay!"== "1" (
-        for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
-            set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
+    %= EXECUTE FADING COMMAND =%
+    if "!action_state:~0,4!" equ "fade" (
+        if "!action_state!" equ "fadein" (
+            if !overCount! geq 13 (
+                if !overCount! geq 16 (
+                    if !overCount! geq 19 (
+                        set "action_state=!action_state_next!"
+                        set "overCount=0"
+                    )
+                    for %%l in ( 0 1 2 3 4 5 6 ) do (
+                        set "line[%%l]=!line[%%l]:°= !"
+                        set "line[%%l]=!line[%%l]:±=°!"
+                        set "line[%%l]=!line[%%l]:Û=±!"
+                    )
+                ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
+                    set "line[%%l]=!line[%%l]:°= !"
+                    set "line[%%l]=!line[%%l]:±= !"
+                    set "line[%%l]=!line[%%l]:Û=°!"
+                )
+            ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
+                set "line[%%l]=!line[%%l]:°= !"
+                set "line[%%l]=!line[%%l]:±= !"
+                set "line[%%l]=!line[%%l]:Û= !"
+            )
+        ) else (
+            if !overCount! geq 3 (
+                if !overCount! geq 6 (
+                    if !overCount! geq 19 (
+                        set "action_state=!action_state_next!"
+                        set "overCount=0"
+                    )
+                    for %%l in ( 0 1 2 3 4 5 6 ) do (
+                        set "line[%%l]=!line[%%l]:°= !"
+                        set "line[%%l]=!line[%%l]:±= !"
+                        set "line[%%l]=!line[%%l]:Û= !"
+                    )
+                ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
+                    set "line[%%l]=!line[%%l]:°= !"
+                    set "line[%%l]=!line[%%l]:±= !"
+                    set "line[%%l]=!line[%%l]:Û=°!"
+                )
+            ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
+                set "line[%%l]=!line[%%l]:°= !"
+                set "line[%%l]=!line[%%l]:±=°!"
+                set "line[%%l]=!line[%%l]:Û=±!"
+            )
         )
-        set "debug_overlay[2]=      !tDiff!"
-        set "debug_overlay[2]=#!debug_overlay[2]:~-6!#"
-        set "debug_overlay[4]=      !fps!"
-        set "debug_overlay[4]=#!debug_overlay[4]:~-6!#"
-        set "debug_overlay[6]=      !action_state!"
-        set "debug_overlay[6]=#!debug_overlay[6]:~-6!#"
-        %drawover% 14 14 8 8 debug_overlay
+        set /a "overCount+=1"
     )
 
-    %cls%
+    if defined DEBUG %@drawOver% 93 106 19 5 debug_line
+    if "!debug_overlay!"== "1" (
+        set "debug_overlay[2]=         !tDiff!"
+        set "debug_overlay[2]=#!debug_overlay[2]:~-9!#"
+        set "debug_overlay[4]=         !fps!"
+        set "debug_overlay[4]=#!debug_overlay[4]:~-9!#"
+        set "debug_overlay[6]=         !action_state!"
+        set "debug_overlay[6]=#!debug_overlay[6]:~-9!#"
+        %@drawOver% 14 14 11 8 debug_overlay
+    )
+
+    %@cls%
     echo(
     for %%l in ( 0 1 2 3 4 5 6 ) do (
         echo(!line[%%l]:~1!
@@ -186,33 +243,64 @@ for /L %%. in ( infinite ) do (
         set "key_list=!key_list!#"
         %= emergency quit button =%
         if "!key_list!" neq "!key_list:#+#=!" (
-            %sendcmd% quit
+            %@sendCmd% quit
             exit
         )
         for %%a in ( %action_events% ) do (
             for %%b in ("!keybind[%%a]!") do (
-                if "!key_list!" neq "!key_list:#%%~b#=!" set "action_%%a=1"
+                if "!key_list!" neq "!key_list:%%~b#=!" set "action_%%a=1"
             )
         )
     )
 
-    if defined action_debug set /a "debug_overlay^=1"
+    if defined DEBUG (
+        if defined action_debug set /a "debug_overlay^=1"
+        if defined action_transition (
+            set "action_state=fadeout"
+            set "action_state_next=debug_t"
+        )
+        if "!action_state!" equ "debug_t" (
+            set "action_state=fadein"
+            set "action_state_next=map"
+            call :load_map data\map2.txt
+            set /a "viewport_x=4, viewport_y=0"
+            set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
+        )
+    )
 
     %= EXECUTE GAME LOGIC =%
     %=TODO    action resolver for cursor stuff in menus %
-    %=TODO    move player only if not hit wall %
+    %=TODO    calculate player position based of viewpoint =%
+    %=TODO    SOFT collision - check if position is in specials, if so execute specials with parameters %
     if "!action_state!"=="map" (
         if defined action_up (
-            set /a "viewport_y_0-=1, viewport_y_1-=1"
+            set "move=1"
+            for %%a in ( FF !colmap_hard! ) do (
+                if "!screen[2]:~9,2!" equ "%%a" set "move="
+            )
+            if defined move set /a "viewport_y_0-=1, viewport_y_1-=1"
         )
         if defined action_down (
-            set /a "viewport_y_0+=1, viewport_y_1+=1"
+            set "move=1"
+            for %%a in ( FF !colmap_hard! ) do (
+                if "!screen[4]:~9,2!" equ "%%a" set "move="
+            )
+            if defined move set /a "viewport_y_0+=1, viewport_y_1+=1"
         )
         if defined action_left (
-            set /a "viewport_x-=3"
+            set "move=1"
+            for %%a in ( FF !colmap_hard! ) do (
+                if "!screen[3]:~6,2!" equ "%%a" set "move="
+            )
+            if defined move set /a "viewport_x-=3"
+
         )
         if defined action_right (
-            set /a "viewport_x+=3"
+            set "move=1"
+            for %%a in ( FF !colmap_hard! ) do (
+                if "!screen[3]:~12,2!" equ "%%a" set "move="
+            )
+            if defined move set /a "viewport_x+=3"
         )
         if defined action_menu set "action_state=menu"
     ) else if "!action_state!"=="menu" (
@@ -245,6 +333,7 @@ exit /B
 
 :: TODO: load from a file
 :load_keybinds  <keybindsfile>
+set "action_events= up down left right menu confirm cancel "
 set "keybind[up]=w"
 set "keybind[down]=s"
 set "keybind[left]=a"
@@ -254,7 +343,7 @@ set "keybind[cancel]=q"
 set "keybind[menu]={Enter}"
 exit /B
 
-:: TODO: generalize this
+:: TODO: convert every char in fontmap to ascii, use that
 :load_fontset  <fontset>
 set /a "fontheight=5 - 1"
 set /a "__fontcount=16"
@@ -277,6 +366,8 @@ exit /B
 ::        - starting position (?)
 ::        - tile events
 :load_map  <mapfile>
+:: TODO: load collision map from map file
+set "colmap_hard= 02 03 04 06 05 "
 set "__frame=FF`FF`FF"
 set /a "__count=3"
 for /F "usebackq delims=" %%a in ("%~f1") do (
@@ -302,29 +393,12 @@ for %%a in ( 0 1 2 !__count! !__count1! !__count2! ) do set "map[%%a]=!__line!"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
-:: TODO: convert this to macro
-:renderfont <renderdata> <output>
-for /L %%a in ( 0 1 !fontheight! ) do set "%~2[%%a]="
-set "s=!%~1!"
-set "len=0"
-for %%a in ( 4096 2048 1024 512 256 128 64 32 16 8 4 2 1 ) do if "!s:~%%a,1!" neq "" (
-    set /a "len+=%%a"
-    set "s=!s:~%%a!"
-)
-for /L %%b in ( 0 1 !len! ) do for %%c in ("!%~1:~%%~b,1!") do (
-    for /L %%a in ( 0 1 !fontheight! ) do (
-        set "%~2[%%a]=!%~2[%%a]!!font[%%~c][%%a]! "
-    )
-)
-for /L %%a in ( 0 1 !fontheight! ) do set "%~2[%%a]=!%~2[%%a]:~0,-1!"
-exit /B
-
 :setup_macros
 :: Define line continuation
 set ^"\n=^^^%LF%%LF%^%LF%%LF%^^"
 
 ::@strLen  <strVar> [RtnVar]
-set @strLen=for %%. in (1 2) do if %%.==2 (%\n%
+set @strLen=for %%# in (1 2) do if %%#==2 (%\n%
   for /f "tokens=1,2 delims=, " %%1 in ("!argv!") do ( endlocal%\n%
     set "s=A!%%~1!"%\n%
     set "len=0"%\n%
@@ -337,9 +411,24 @@ set @strLen=for %%. in (1 2) do if %%.==2 (%\n%
     for %%V in (!len!) do endlocal^&if "%%~2" neq "" (set "%%~2=%%V") else echo %%V%\n%
   )%\n%
 ) else setlocal enableDelayedExpansion^&setlocal^&set argv=,
-::drawover  <x> <y> <xlen> <ylen> <data>
+
+::@renderFont  <renderdata> <output>
+:: render characters into an array to be displayed with @drawOver
+set @renderFont=for %%# in (1 2) do if %%#==2 ( for /f "tokens=1,2 delims=, " %%1 in ("!argv!") do ( %\n%
+for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=" %\n%
+set "s=!%%~1!" %\n%
+set "len=0" %\n%
+for %%a in ( 4096 2048 1024 512 256 128 64 32 16 8 4 2 1 ) do if "!s:~%%a,1!" neq "" (%\n%
+    set /a "len+=%%a" %\n%
+    set "s=!s:~%%a!" %\n%
+) %\n%
+for /L %%b in ( 0 1 !len! ) do for %%c in ("!%%~1:~%%~b,1!") do for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]!!font[%%~c][%%a]! " %\n%
+for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]:~0,-1!" %\n%
+)) else set argv=,
+
+::@drawOver  <x> <y> <xlen> <ylen> <data>
 ::: draw data over a specified portion of the screen.
-set drawover=for %%# in (1 2) do if %%#==2 ( %\n%
+set @drawOver=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
     set /a "yless=%%~4-1" %\n%
     for /L %%a in ( 0 1 !yless! ) do ( %\n%
@@ -351,18 +440,21 @@ for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
 )) else set args=,
 
 :: clear screen by setting cursor to 0:0
-set "cls=<NUL set /P =%ESC%[H"
+set "@cls=<NUL set /P =%ESC%[H"
 
-:: sendCmd  command
+:: @sendCmd  command
 :::  sends a command to the controller
-set "sendCmd=>&%cmdStream% echo"
+set "@sendCmd=>&%cmdStream% echo"
 
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
 :getSession
 ::if defined temp (set "tempFileBase=%temp%\") else if defined tmp set "tempFileBase=%tmp%\"
-set "tempFileBase=%tempFileBase%Grub4E\%time::=-%\"
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "tempFileBase=%%a"
+set "tempFileBase=%tempFileBase:.=%"
+set "tempFileBase=%tempFileBase:~0,-7%"
+set "tempFileBase=%~dp0Grub4E\%tempFileBase%\"
 set "keyFile=%tempFileBase%key.txt"
 set "cmdFile=%tempFileBase%cmd.txt"
 set "gameLock=%tempFileBase%lock.txt"
@@ -390,11 +482,6 @@ cmd /c ^""%~f0" startGame  2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmd
 :close
 2>nul (>>"%keyFile%" call ) || goto :close
 exit /b 0
-
-:DEBUG
-
-exit /B
-
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :controller
