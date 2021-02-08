@@ -124,9 +124,12 @@ set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewpor
 
 
 if defined DEBUG (
-    set "temp=DEBUG"
+    set "templine=DEBUG"
     %@renderFont% temp debug_line
-    set "temp="
+    set "templine="
+    set "debug_line[#]=4"
+    for /L %%a in ( 0 1 4 ) do set "debug_line[%%a]=!debug_line[%%a]: =.!"
+    call :texconvert_alpha debug_line
     set "debug_overlay[#]=1"
     set "debug_overlay_list="
     %@addDebugData% tDiff
@@ -197,7 +200,7 @@ for /L %%. in ( infinite ) do (
     )
 
     %= DEBUG OVERLAY =%
-    if defined DEBUG %@drawOver% 94 108 19 4 debug_line
+    if defined DEBUG %@drawOverAlpha% 94 108 debug_line_alpha
     if "!debug_overlay!"== "1" (
         set "debug_count=2"
         for %%a in ( !debug_overlay_list! ) do (
@@ -387,6 +390,35 @@ for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__lin
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
+:texconvert_alpha  <textureArray>
+set "__line=!%~1[0]!"
+(%@strLen% __line __length)
+set /a "__length-=1, %~1_alpha[#]=-1"
+for /L %%a in ( 0 1 !%~1[#]! ) do (
+    set /a "__mode=0"
+    for /L %%b in ( 0 1 !__length! ) do (
+        if "!%~1[%%a]:~%%b,1!" neq "." (
+            if !__mode! equ 0 (
+                set /a "%~1_alpha[#]+=1"
+                set "outlen=1"
+                set "outline=%%b`%%a`!%~1[%%a]:~%%b,1!"
+                set "__mode=1"
+            ) else (
+                set "outline=!outline!!%~1[%%a]:~%%b,1!"
+                set /a "outlen+=1"
+            )
+        ) else (
+            if !__mode! equ 1 (
+                set "%~1_alpha[!%~1_alpha[#]!]=!outline!`!outlen!"
+                set "__mode=0"
+            )
+        )
+    )
+    if !__mode! equ 1 set "%~1_alpha[!%~1_alpha[#]!]=!outline!`!outlen!"
+)
+for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+exit /B
+
 :setup
 set "UPPER=A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
 
@@ -476,9 +508,26 @@ for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]:~0,-1!" %\n%
 set @drawOver=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
     for /L %%a in ( 0 1 %%~4 ) do ( %\n%
-        set /a "y=%%2+%%a-1,linenum=y/16,linestart=(y%% 16)*(16*7+2)+%%1+1,lineend=linestart+%%3" %\n%
+        set /a "y=%%2+%%a-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+1,lineend=linestart+%%3" %\n%
         for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
             set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%3!!line[%%~b]:~%%~d!" %\n%
+        ) %\n%
+    ) %\n%
+)) else set args=,
+
+:: TODO: Fix this
+::@drawOverAlpha  <x> <y> <data>
+::: draw data over a specified portion of the screen.
+::: Input has to be a texture prepared using :texconvert_alpha
+::: x and y start at 1
+set @drawOverAlpha=for %%# in (1 2) do if %%#==2 ( %\n%
+for /F "tokens=1-3 delims=, " %%1 in ("!args!") do ( %\n%
+    for /L %%a in ( 0 1 !%%~3[#]! ) do ( %\n%
+        for /F "tokens=1-4 delims=`" %%4 in ("!%%~3[%%a]!") do (%\n%
+            set /a "y=%%2+%%5-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+%%4,lineend=linestart+%%7" %\n%
+            for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
+                set "line[%%b]=!line[%%~b]:~0,%%~c!%%6!line[%%~b]:~%%~d!" %\n%
+            ) %\n%
         ) %\n%
     ) %\n%
 )) else set args=,
