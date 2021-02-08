@@ -524,7 +524,7 @@ set @drawOverAlpha=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-3 delims=, " %%1 in ("!args!") do ( %\n%
     for /L %%a in ( 0 1 !%%~3[#]! ) do ( %\n%
         for /F "tokens=1-4 delims=`" %%4 in ("!%%~3[%%a]!") do (%\n%
-            set /a "y=%%2+%%5-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+%%4,lineend=linestart+%%7" %\n%
+            set /a "y=%%2+%%5-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+%%4+1,lineend=linestart+%%7" %\n%
             for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
                 set "line[%%b]=!line[%%~b]:~0,%%~c!%%6!line[%%~b]:~%%~d!" %\n%
             ) %\n%
