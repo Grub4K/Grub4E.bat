@@ -6,6 +6,16 @@
 ::
 :: Changelog
 ::
+:: 0.2.1
+::   - Create debug mode
+::
+:: 0.2.0
+::   - Implement map loading
+::   - Implement limited fontset loading
+::   - Implement fontset rendering
+::   - Implement action events
+::   - Move macro definition to subroutine
+::
 :: 0.1.0
 ::   - Initial
 ::
@@ -17,13 +27,15 @@
 ::
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 @echo off
+cls
 if "%~1" == "startGame" goto :game
 if "%~1" == "startController" goto :controller
+setlocal disableDelayedExpansion
+set "DEBUG="
+if "%~1" == "-DEBUG" set "DEBUG=1"
+
 color F0
 mode 114,114
-cls
-setlocal disableDelayedExpansion
-::goto :DEBUG
 goto :getSession
 
 :game
@@ -31,9 +43,9 @@ set "VERTICAL_RES=8"
 set "HORIZONTAL_RES=8"
 set "MAXSIMULTKEYS=10"
 
+:: TODO make this exportable ie read data\gameinfo.txt
 set "GAMETITLE=Demo game"
 
-set "DEBUG_OVERLAY=1"
 
 set /a "VERTICAL_RES-=1, HORIZONTAL_RES-=1"
 :: TODO: dynamic creation of for in content counters
@@ -49,39 +61,15 @@ set ^"LF=^
 %= These lines are required =%
 ^" do not remove
 
-:: Define line continuation
-set ^"\n=^^^%LF%%LF%^%LF%%LF%^^"
-
 :: Define ESC as the escape character
 for /f "delims=" %%E in ('forfiles /p "%~dp0." /m "%~nx0" /c "cmd /c echo(0x1B"') do (
     set "ESC=%%E"
+    <NUL set /p "_=%%E[?25l"
 )
 
+call :setup_macros
 
-::drawover  <x> <y> <xlen> <ylen> <data>
-::: draw data over a specified portion of the screen.
-set drawover=for %%# in (1 2) do if %%#==2 ( %\n%
-for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
-    set /a "yless=%%~4-1" %\n%
-    for /L %%a in ( 0 1 !yless! ) do ( %\n%
-        set /a "y=%%~2+%%a,linenum=y/16,linestart=(y %% 16)*(16*7+2)+%%~1,lineend=linestart+%%~3" %\n%
-        for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
-            set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%~3!!line[%%~b]:~%%~d!" %\n%
-        ) %\n%
-    ) %\n%
-)) else set args=,
-
-:: Define 'clear screen' macro
-set "cls=<NUL set /P =%ESC%[H"
-
-
-
-
-
-<NUL set /p "_=%ESC%[?25l"
 setlocal EnableDelayedExpansion
-title [Grub4E] !gametitle!
-
 
 set "count=0"
 set "lineset="
@@ -94,61 +82,44 @@ for %%s in ( %HEX% ) do (
     set "spriteset[FF]_%%s=                "
 )
 
-:: sendCmd  command
-:::  sends a command to the controller
-set "sendCmd=>&%cmdStream% echo"
+set "action_state=map"
+set "action_events= up down left right menu confirm cancel "
+
 
 
 :: DONE SETTING UP ENGINE
 
+:: TODO load keybinds from file
+title [Grub4E] Loading... [ Keybinds ]
+call :load_keybinds save\keybinds.txt
+
+title [Grub4E] Loading... [ Fonts    ]
+call :load_fontset data\font.txt
+
+title [Grub4E] Loading... [ Sprites  ]
 call :load_spriteset data\spriteset.txt
 
-
-:: TODO: implement map loading
-set "line=-1"
-for %%a in (
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`04`04`04`04`07`04`04`04`04`FF`FF`FF`FF"
-    "FF`FF`FF`FF`02`01`01`01`01`06`01`06`02`FF`FF`FF`FF"
-    "FF`FF`FF`FF`03`01`01`01`01`05`01`05`03`FF`FF`FF`FF"
-    "FF`FF`FF`FF`02`01`01`01`01`01`01`01`02`FF`FF`FF`FF"
-    "FF`FF`FF`FF`03`01`01`01`01`06`01`06`03`FF`FF`FF`FF"
-    "FF`FF`FF`FF`02`01`01`01`01`05`01`05`02`FF`FF`FF`FF"
-    "FF`FF`FF`FF`03`01`01`01`01`01`01`01`03`FF`FF`FF`FF"
-    "FF`FF`FF`FF`01`01`01`00`00`01`01`01`01`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-    "FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF`FF"
-) do (
-    set /a "line+=1"
-    set "map[!line!]=%%~a"
-)
-set "action_state=map"
-set "action_events= up down left right menu confirm cancel "
-:: TODO load keybinds from file
-set "keybind[up]=w"
-set "keybind[down]=s"
-set "keybind[left]=a"
-set "keybind[right]=d"
-set "keybind[confirm]=e"
-set "keybind[cancel]=q"
-set "keybind[menu]={Enter}"
-
-if defined debug_overlay (
-    set debug_overlay[0]=########
-    set debug_overlay[1]=#CS/f: #
-    set debug_overlay[3]=#FPS:  #
-    set debug_overlay[5]=#State:#
-    set debug_overlay[7]=########
-)
+title [Grub4E] Loading... [ Map      ]
+call :load_map data\map.txt
 
 set /a "viewport_x=0, viewport_y=0"
 set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
 
+title [Grub4E] !gametitle!
+if defined DEBUG (
+    set "temp=DEBUG"
+    call :renderfont temp debug_line
+    set "temp="
+    set "debug_overlay[0]=########"
+    set "debug_overlay[1]=#CS/f: #"
+    set "debug_overlay[3]=#FPS:  #"
+    set "debug_overlay[5]=#State:#"
+    set "debug_overlay[7]=########"
+    set "keybind[debug]=#"
+    set "action_events=!action_events! debug "
+    set "debug_overlay=0"
+    title [Grub4E:debug] !gametitle!
+)
 
 %sendCmd% go
 for /L %%. in ( infinite ) do (
@@ -167,7 +138,7 @@ for /L %%. in ( infinite ) do (
     )
 
     %=TODO    manage drawing of character differntly %
-    set "screen[3]=!screen[3]:~0,9!08!screen[3]:~-10!"
+    set "screen[3]=!screen[3]:~0,9!08!screen[3]:~11!"
     %=TODO    generate below counter dynamically %
     for %%l in ( 0 1 2 3 4 5 6 ) do (
         for /F "tokens=1-16 delims=`" %%A in ("!screen[%%l]!") do (
@@ -178,8 +149,8 @@ for /L %%. in ( infinite ) do (
         )
     )
 
-
-    if defined debug_overlay (
+    if defined DEBUG %drawover% 93 106 19 5 debug_line
+    if "!debug_overlay!"== "1" (
         for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
             set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
         )
@@ -224,6 +195,8 @@ for /L %%. in ( infinite ) do (
             )
         )
     )
+
+    if defined action_debug set /a "debug_overlay^=1"
 
     %= EXECUTE GAME LOGIC =%
     %=TODO    action resolver for cursor stuff in menus %
@@ -270,8 +243,119 @@ set "__map=0123456789ABCDEF"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
+:: TODO: load from a file
+:load_keybinds  <keybindsfile>
+set "keybind[up]=w"
+set "keybind[down]=s"
+set "keybind[left]=a"
+set "keybind[right]=d"
+set "keybind[confirm]=e"
+set "keybind[cancel]=q"
+set "keybind[menu]={Enter}"
+exit /B
+
+:: TODO: generalize this
+:load_fontset  <fontset>
+set /a "fontheight=5 - 1"
+set /a "__fontcount=16"
+(
+    set /p "__fontmap="
+    %@strLen% fontmap fontcount
+    set /a "__fontcount-=1"
+    for /L %%a in ( 0 1 !__fontcount! ) do (
+        set "__current=!__fontmap:~%%a,1!"
+        for /L %%b in ( 0 1 !fontheight! ) do (
+            set /p "font[!__current!][%%b]="
+        )
+    )
+) <"%~1"
+for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+exit /B
+
+:: TODO: make this more advanced
+::        - automatic spriteset loading
+::        - starting position (?)
+::        - tile events
+:load_map  <mapfile>
+set "__frame=FF`FF`FF"
+set /a "__count=3"
+for /F "usebackq delims=" %%a in ("%~f1") do (
+    set "__line=%%a"
+    if not defined mapsize (
+        %@strLen% __line mapsize
+        set /a "mapsize-=1"
+    )
+    set "map[!__count!]=!__frame!`"
+    for %%b in ("map[!__count!]") do (
+        for /L %%c in ( 0 2 !mapsize! ) do (
+            set "%%~b=!%%~b!!__line:~%%c,2!`"
+        )
+        set "%%~b=!%%~b!!__frame!"
+    )
+    set /a "__count+=1"
+)
+set /a "__count1=__count+1, __count2=__count+2"
+set "__line=!__frame!`"
+for /L %%. in ( 0 2 !mapsize! ) do set "__line=!__line!FF`"
+set "__line=!__line!!__frame!"
+for %%a in ( 0 1 2 !__count! !__count1! !__count2! ) do set "map[%%a]=!__line!"
+for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+exit /B
+
+:: TODO: convert this to macro
+:renderfont <renderdata> <output>
+for /L %%a in ( 0 1 !fontheight! ) do set "%~2[%%a]="
+set "s=!%~1!"
+set "len=0"
+for %%a in ( 4096 2048 1024 512 256 128 64 32 16 8 4 2 1 ) do if "!s:~%%a,1!" neq "" (
+    set /a "len+=%%a"
+    set "s=!s:~%%a!"
+)
+for /L %%b in ( 0 1 !len! ) do for %%c in ("!%~1:~%%~b,1!") do (
+    for /L %%a in ( 0 1 !fontheight! ) do (
+        set "%~2[%%a]=!%~2[%%a]!!font[%%~c][%%a]! "
+    )
+)
+for /L %%a in ( 0 1 !fontheight! ) do set "%~2[%%a]=!%~2[%%a]:~0,-1!"
+exit /B
+
 :setup_macros
-:: TODO
+:: Define line continuation
+set ^"\n=^^^%LF%%LF%^%LF%%LF%^^"
+
+::@strLen  <strVar> [RtnVar]
+set @strLen=for %%. in (1 2) do if %%.==2 (%\n%
+  for /f "tokens=1,2 delims=, " %%1 in ("!argv!") do ( endlocal%\n%
+    set "s=A!%%~1!"%\n%
+    set "len=0"%\n%
+    for %%P in (4096 2048 1024 512 256 128 64 32 16 8 4 2 1) do (%\n%
+      if "!s:~%%P,1!" neq "" (%\n%
+        set /a "len+=%%P"%\n%
+        set "s=!s:~%%P!"%\n%
+      )%\n%
+    )%\n%
+    for %%V in (!len!) do endlocal^&if "%%~2" neq "" (set "%%~2=%%V") else echo %%V%\n%
+  )%\n%
+) else setlocal enableDelayedExpansion^&setlocal^&set argv=,
+::drawover  <x> <y> <xlen> <ylen> <data>
+::: draw data over a specified portion of the screen.
+set drawover=for %%# in (1 2) do if %%#==2 ( %\n%
+for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
+    set /a "yless=%%~4-1" %\n%
+    for /L %%a in ( 0 1 !yless! ) do ( %\n%
+        set /a "y=%%~2+%%a,linenum=y/16,linestart=(y %% 16)*(16*7+2)+%%~1,lineend=linestart+%%~3" %\n%
+        for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
+            set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%~3!!line[%%~b]:~%%~d!" %\n%
+        ) %\n%
+    ) %\n%
+)) else set args=,
+
+:: clear screen by setting cursor to 0:0
+set "cls=<NUL set /P =%ESC%[H"
+
+:: sendCmd  command
+:::  sends a command to the controller
+set "sendCmd=>&%cmdStream% echo"
 
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
