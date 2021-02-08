@@ -125,7 +125,7 @@ set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewpor
 
 if defined DEBUG (
     set "templine=DEBUG"
-    %@renderFont% temp debug_line
+    %@renderFont% templine debug_line
     set "templine="
     set "debug_line[#]=4"
     for /L %%a in ( 0 1 4 ) do set "debug_line[%%a]=!debug_line[%%a]: =.!"
