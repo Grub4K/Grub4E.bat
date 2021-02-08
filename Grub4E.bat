@@ -4,39 +4,6 @@
 :: Written by Grub4K (Grub4K#2417) with some techniques from DosTips.
 ::
 ::
-:: Changelog
-::
-:: 0.4
-::   - Fix drawOver drawing being offset
-::   - Implement proper fontset using ascii values
-::   - Rework fading to be smaller and also use time not iterations
-::   - Load hard collision map from map file
-::   - Enable debug overlay by default in debug mode
-::   - Rework debug overlay to be nicer and have addDebugData macro
-::   - Move variable setting to setup as well as delayedSetup
-::   - Move getSession to the top as that will stay constant
-::
-:: 0.3
-::   - implement fading
-::   - move keybind loading
-::   - Check hard collision map before movement
-::   - renderFont macro
-::   - changed naming of session folder
-::   - move action event setup to keybind loading
-::   - added additional info for debug mode
-::   - Use @ convention for macros
-::
-:: 0.2
-::   - Create debug mode
-::   - Implement map loading
-::   - Implement limited fontset loading
-::   - Implement fontset rendering
-::   - Implement action events
-::   - Move macro definition to subroutine
-::
-:: 0.1
-::   - Initial
-::
 :: This Source Code Form is subject to the terms of the Mozilla Public
 :: License, v. 2.0. If a copy of the MPL was not distributed with this
 :: file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -93,11 +60,9 @@ set "MAXSIMULTKEYS=10"
 
 set /a "fontheight=5, fontwidth=3"
 
-:: TODO make this exportable ie read data\gameinfo.txt
 set "GAMETITLE=Demo game"
 
 set /a "VERTICAL_RES-=1, HORIZONTAL_RES-=1"
-:: TODO: dynamic creation of for in content counters
 
 call :setup
 setlocal EnableDelayedExpansion
@@ -106,7 +71,6 @@ call :setupDelayed
 :: DONE SETTING UP ENGINE
 title [Grub4E] !gametitle!
 
-:: TODO load keybinds from file
 title [Grub4E] Loading... [ Keybinds ]
 call :load_keybinds  save\keybinds.txt
 
@@ -127,9 +91,6 @@ if defined DEBUG (
     set "templine=DEBUG"
     %@renderFont% templine debug_line
     set "templine="
-    set "debug_line[#]=4"
-    for /L %%a in ( 0 1 4 ) do set "debug_line[%%a]=!debug_line[%%a]: =.!"
-    call :texconvert_alpha debug_line
     set "debug_overlay[#]=1"
     set "debug_overlay_list="
     %@addDebugData% tDiff
@@ -156,20 +117,13 @@ for /L %%. in ( infinite ) do (
         set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
     )
     %= DRAW THE SCREEN =%
-    %=TODO    implement partial redraws %
-    %=         - skip background recalculation %
-    %=         - calculate substring position for line, then for loop over and insert %
-    %=TODO    implement automatic dynamic sprites draw %
-    %=TODO    implement text draw %
     set "count=0"
     for /L %%a in ( !viewport_y_0! 1 !viewport_y_1! ) do (
         for %%b in ("!viewport_x!") do for %%c in ("!HRES!") do set "screen[!count!]=!map[%%a]:~%%~b,%%~c!"
         set /a "count+=1"
     )
 
-    %=TODO    manage drawing of character differntly %
     set "screen[3]=!screen[3]:~0,9!08!screen[3]:~11!"
-    %=TODO    generate below counter dynamically %
     for %%l in ( 0 1 2 3 4 5 6 ) do (
         for /F "tokens=1-16 delims=`" %%A in ("!screen[%%l]!") do (
             set "line[%%l]="
@@ -200,7 +154,7 @@ for /L %%. in ( infinite ) do (
     )
 
     %= DEBUG OVERLAY =%
-    if defined DEBUG %@drawOverAlpha% 94 108 debug_line_alpha
+    if defined DEBUG %@drawOver% 94 108 19 5 debug_line
     if "!debug_overlay!"== "1" (
         set "debug_count=2"
         for %%a in ( !debug_overlay_list! ) do (
@@ -259,9 +213,6 @@ for /L %%. in ( infinite ) do (
     )
 
     %= EXECUTE GAME LOGIC =%
-    %=TODO    action resolver for cursor stuff in menus %
-    %=TODO    calculate player position based of viewpoint =%
-    %=TODO    SOFT collision - check if position is in specials, if so execute specials with parameters %
     if "!action_state!"=="map" (
         if defined action_up (
             set "move=1"
@@ -321,7 +272,6 @@ set "__map=0123456789ABCDEF"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
-:: TODO: load from a file
 :load_keybinds  <keybindsfile>
 set "action_events= up down left right menu confirm cancel "
 set "keybind[up]=w"
@@ -350,17 +300,6 @@ exit /B
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
-
-:: TODO: make this more advanced
-::        - automatic spriteset loading -> will be done using transistion events
-::        - starting position -> makes no sense, let transition handle that too
-::        - tile events
-::
-:: set /p "__spriteset_count="
-:: for /L %%# in ( 1 1 !__spriteset_count! ) do (
-::     set /p "__line="
-::     call :load_spriteset !__line!
-:: )
 
 :load_map  <mapfile>
  <"%~f1" (
@@ -435,7 +374,6 @@ for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "r
 set "random_x32=%random_x32:.=%"
 set /a "random_x32=0x%random_x32:~-12,-4%"
 
-:: TODO: Only do on VT100
 :: Define ESC as the escape character
 for /f "delims=" %%E in ('forfiles /p "%~dp0." /m "%~nx0" /c "cmd /c echo(0x1B"') do (
     set "ESC=%%E"
@@ -515,7 +453,6 @@ for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
     ) %\n%
 )) else set args=,
 
-:: TODO: Fix this
 ::@drawOverAlpha  <x> <y> <data>
 ::: draw data over a specified portion of the screen.
 ::: Input has to be a texture prepared using :texconvert_alpha
