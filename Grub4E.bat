@@ -6,6 +6,16 @@
 ::
 :: Changelog
 ::
+:: 0.4
+::   - Fix drawOver drawing being offset
+::   - Implement proper fontset using ascii values
+::   - Rework fading to be smaller and also use time not iterations
+::   - Load hard collision map from map file
+::   - Enable debug overlay by default in debug mode
+::   - Rework debug overlay to be nicer and have addDebugData macro
+::   - Move variable setting to setup as well as delayedSetup
+::   - Move getSession to the top as that will stay constant
+::
 :: 0.3
 ::   - implement fading
 ::   - move keybind loading
@@ -40,67 +50,71 @@ if "%~1" == "startGame" goto :game
 if "%~1" == "startController" goto :controller
 setlocal disableDelayedExpansion
 set "DEBUG="
-if "%~1" == "-DEBUG" set "DEBUG=1"
-pause
+if /i "%~1" == "-DEBUG" set "DEBUG=1"
 color F0
 mode 114,114
-goto :getSession
+:getSession
+::if defined temp (set "tempFileBase=%temp%\") else if defined tmp set "tempFileBase=%tmp%\"
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "tempFileBase=%%a"
+set "tempFileBase=%tempFileBase:.=%"
+set "tempFileBase=%tempFileBase:~0,-7%"
+set "tempFileBase=%~dp0sessions\%tempFileBase%\"
+set "keyFile=%tempFileBase%key.txt"
+set "cmdFile=%tempFileBase%cmd.txt"
+set "gameLock=%tempFileBase%lock.txt"
+set "gameLog=%tempFileBase%gamelog.txt"
+set "signal=%tempFileBase%signal.txt"
+set "keyStream=9"
+set "cmdStream=8"
+set "lockStream=7"
+if not exist "%tempFileBase%" md "%tempFileBase%"
+:: Lock this game session and launch.
+:: Loop back and try a new session if failure.
+:: Cleanup and exit when finished
+call :launch %lockStream%>"%gameLock%" || goto :getSession
+rd /s /q "%tempFileBase%"
+exit /b
+
+:launch
+:: launch the game and the controller
+copy nul "%keyFile%" >nul
+copy nul "%cmdFile%" >nul
+start "" /b cmd /c ^""%~f0" startController %keyStream%^>^>"%keyFile%" %cmdStream%^<"%cmdFile%" 2^>nul ^>nul^"
+cmd /c ^""%~f0" startGame  2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmdFile%" ^<nul^"
+<NUL set /P "=Press any button to quit..."
+:close
+2>nul (>>"%keyFile%" call ) || goto :close
+exit /b 0
 
 :game
 set "VERTICAL_RES=8"
 set "HORIZONTAL_RES=8"
 set "MAXSIMULTKEYS=10"
 
+set /a "fontheight=5, fontwidth=3"
+
 :: TODO make this exportable ie read data\gameinfo.txt
 set "GAMETITLE=Demo game"
 
-
 set /a "VERTICAL_RES-=1, HORIZONTAL_RES-=1"
 :: TODO: dynamic creation of for in content counters
-set "UPPER=A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
 
-set "current_key="
-
-set "HEX=0 1 2 3 4 5 6 7 8 9 A B C D E F "
-
-::call :setup_macros
-:: define LF as a Line Feed (newline) character
-set ^"LF=^
-%= These lines are required =%
-^" do not remove
-
-:: Define ESC as the escape character
-for /f "delims=" %%E in ('forfiles /p "%~dp0." /m "%~nx0" /c "cmd /c echo(0x1B"') do (
-    set "ESC=%%E"
-    <NUL set /p "_=%%E[?25l"
-)
-
-call :setup_macros
-
+call :setup
 setlocal EnableDelayedExpansion
-
-set "count=0"
-set "lineset="
-for %%a in ( %UPPER% ) do (
-    set /a "count+=1"
-    if !count! leq %HORIZONTAL_RES% set "lineset=!lineset!^!spriteset[%%%%a]_%%s^!"
-)
-:: Fill the spriteset with an empty tile
-for %%s in ( %HEX% ) do (
-    set "spriteset[FF]_%%s=                "
-)
+call :setupDelayed
 
 :: DONE SETTING UP ENGINE
+title [Grub4E] !gametitle!
 
 :: TODO load keybinds from file
 title [Grub4E] Loading... [ Keybinds ]
-call :load_keybinds save\keybinds.txt
+call :load_keybinds  save\keybinds.txt
 
 title [Grub4E] Loading... [ Fonts    ]
-call :load_fontset data\font.txt
+call :load_fontset  data\font.txt
 
 title [Grub4E] Loading... [ Sprites  ]
-call :load_spriteset data\spriteset.txt
+call :load_spriteset  data\spriteset.txt
 
 title [Grub4E] Loading... [ Map      ]
 call :load_map data\map.txt
@@ -108,28 +122,31 @@ call :load_map data\map.txt
 set /a "viewport_x=1, viewport_y=1"
 set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
 
-title [Grub4E] !gametitle!
+
 if defined DEBUG (
     set "temp=DEBUG"
     %@renderFont% temp debug_line
     set "temp="
-    set "debug_overlay[0]=###########"
-    set "debug_overlay[1]=#CS/f:    #"
-    set "debug_overlay[3]=#FPS:     #"
-    set "debug_overlay[5]=#State:   #"
-    set "debug_overlay[7]=###########"
+    set "debug_overlay[#]=1"
+    set "debug_overlay_list="
+    %@addDebugData% tDiff
+    %@addDebugData% action_state
+    %@addDebugData% fadeOverTime
+    set "debug_overlay[0]=ษออออออออออออออออออออป"
     set "keybind[debug]=#"
     set "action_events=!action_events! transition debug "
-    set "debug_overlay=0"
+    set "debug_overlay=1"
     set "keybind[transition]=x"
-    title [Grub4E] DEBUG:!gametitle!
+    title [Grub4E] !gametitle!
 )
 
 set "overCount=0"
-set "action_state=fadein"
+set "fadeOverTime=0"
+set "action_state=fade01"
 set "action_state_next=map"
 
 %@sendCmd% go
+for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do set /a "t1=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100"
 for /L %%. in ( infinite ) do (
     %= CALCULATE TIME DIFFERENCE AND FPS =%
     for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
@@ -161,65 +178,38 @@ for /L %%. in ( infinite ) do (
 
     %= EXECUTE FADING COMMAND =%
     if "!action_state:~0,4!" equ "fade" (
-        if "!action_state!" equ "fadein" (
-            if !overCount! geq 13 (
-                if !overCount! geq 16 (
-                    if !overCount! geq 19 (
-                        set "action_state=!action_state_next!"
-                        set "overCount=0"
-                    )
+        if !fadeOverTime! equ 0 set /a "fadeOverCount=0, fadeOverTime=0, fadeOff=3+5*!action_state:~4,1!, fadeMul=(!action_state:~5,1!*2-1), fadeAdd=fadeOff+((~!action_state:~5,1!+1)*3)"
+        for /L %%a in ( 0 1 3 ) do (
+            set /a "fadeStateFrom=fadeOff+%%a, fadeStateTo=fadeMul*fadeOverCount+fadeAdd+%%a"
+            for /F "tokens=1,2 delims=`" %%b in ("!fadeStateFrom!`!fadeStateTo!") do (
+                for /F "tokens=1,2 delims=`" %%d in ("!fadeLookup:~%%~b,1!`!fadeLookup:~%%~c,1!") do (
                     for %%l in ( 0 1 2 3 4 5 6 ) do (
-                        set "line[%%l]=!line[%%l]:ฐ= !"
-                        set "line[%%l]=!line[%%l]:ฑ=ฐ!"
-                        set "line[%%l]=!line[%%l]:Û=ฑ!"
+                        set "line[%%l]=!line[%%l]:%%~d=%%~e!"
                     )
-                ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
-                    set "line[%%l]=!line[%%l]:ฐ= !"
-                    set "line[%%l]=!line[%%l]:ฑ= !"
-                    set "line[%%l]=!line[%%l]:Û=ฐ!"
                 )
-            ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
-                set "line[%%l]=!line[%%l]:ฐ= !"
-                set "line[%%l]=!line[%%l]:ฑ= !"
-                set "line[%%l]=!line[%%l]:Û= !"
-            )
-        ) else (
-            if !overCount! geq 3 (
-                if !overCount! geq 6 (
-                    if !overCount! geq 19 (
-                        set "action_state=!action_state_next!"
-                        set "overCount=0"
-                    )
-                    for %%l in ( 0 1 2 3 4 5 6 ) do (
-                        set "line[%%l]=!line[%%l]:ฐ= !"
-                        set "line[%%l]=!line[%%l]:ฑ= !"
-                        set "line[%%l]=!line[%%l]:Û= !"
-                    )
-                ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
-                    set "line[%%l]=!line[%%l]:ฐ= !"
-                    set "line[%%l]=!line[%%l]:ฑ= !"
-                    set "line[%%l]=!line[%%l]:Û=ฐ!"
-                )
-            ) else for %%l in ( 0 1 2 3 4 5 6 ) do (
-                set "line[%%l]=!line[%%l]:ฐ= !"
-                set "line[%%l]=!line[%%l]:ฑ=ฐ!"
-                set "line[%%l]=!line[%%l]:Û=ฑ!"
             )
         )
-        set /a "overCount+=1"
+        set /a "fadeOverTime+=tDiff, fadeOverCount=fadeOverTime/10"
+        if !fadeOverCount! geq 4 (
+            set "fadeOverTime=0"
+            set "action_state=!action_state_next!"
+        )
     )
 
-    if defined DEBUG %@drawOver% 93 106 19 5 debug_line
+    %= DEBUG OVERLAY =%
+    if defined DEBUG %@drawOver% 94 108 19 4 debug_line
     if "!debug_overlay!"== "1" (
-        set "debug_overlay[2]=         !tDiff!"
-        set "debug_overlay[2]=#!debug_overlay[2]:~-9!#"
-        set "debug_overlay[4]=         !fps!"
-        set "debug_overlay[4]=#!debug_overlay[4]:~-9!#"
-        set "debug_overlay[6]=         !action_state!"
-        set "debug_overlay[6]=#!debug_overlay[6]:~-9!#"
-        %@drawOver% 14 14 11 8 debug_overlay
+        set "debug_count=2"
+        for %%a in ( !debug_overlay_list! ) do (
+            set "debug_temp=                    !%%a!"
+            set "debug_overlay[!debug_count!]=บ!debug_temp:~-20!บ"
+            set /a "debug_count+=2"
+        )
+        set "debug_overlay[!debug_overlay[#]!]=ศออออออออออออออออออออผ"
+        %@drawOver% 2 2 22 !debug_overlay[#]! debug_overlay
     )
 
+    %= FLIP =%
     %@cls%
     echo(
     for %%l in ( 0 1 2 3 4 5 6 ) do (
@@ -229,12 +219,9 @@ for /L %%. in ( infinite ) do (
     %= PROCESS INPUT =%
     set "key_list="
     for /L %%: in ( 1 1 %MAXSIMULTKEYS% ) do (
+        set "inKey="
         <&%keyStream% set /p "inKey="
-        if not "!current_key!" == "!inKey!" (
-            set "key=!inKey:*#=!"
-            set "key_list=!key_list!#!key:~0,-1!"
-            set "current_key=!inKey!"
-        )
+        if defined inKey set "key_list=!key_list!#!inKey:~0,-1!"
     )
     %= Clear action events =%
     for %%a in ( %action_events% ) do set "action_%%a="
@@ -256,11 +243,11 @@ for /L %%. in ( infinite ) do (
     if defined DEBUG (
         if defined action_debug set /a "debug_overlay^=1"
         if defined action_transition (
-            set "action_state=fadeout"
+            set "action_state=fade00"
             set "action_state_next=debug_t"
         )
         if "!action_state!" equ "debug_t" (
-            set "action_state=fadein"
+            set "action_state=fade01"
             set "action_state_next=map"
             call :load_map data\map2.txt
             set /a "viewport_x=4, viewport_y=0"
@@ -343,60 +330,112 @@ set "keybind[cancel]=q"
 set "keybind[menu]={Enter}"
 exit /B
 
-:: TODO: convert every char in fontmap to ascii, use that
 :load_fontset  <fontset>
-set /a "fontheight=5 - 1"
-set /a "__fontcount=16"
-(
+<"%~1" (
     set /p "__fontmap="
-    %@strLen% fontmap fontcount
-    set /a "__fontcount-=1"
-    for /L %%a in ( 0 1 !__fontcount! ) do (
-        set "__current=!__fontmap:~%%a,1!"
-        for /L %%b in ( 0 1 !fontheight! ) do (
-            set /p "font[!__current!][%%b]="
+    %@strLen% __fontmap __fontcount
+    set /a "__fontcount-=2"
+    for /L %%a in ( 0 2 !__fontcount! ) do (
+        set /a "__start=0x!__fontmap:~%%a,2! * fontwidth, __stop=__start+fontwidth"
+        for /F "tokens=1,2 delims=`" %%b in ("!__start!`!__stop!") do (
+            for /L %%d in ( 0 1 !fontheight! ) do (
+                set /p "__current="
+                set "fontset[%%d]=!fontset[%%d]:~0,%%b!!__current!!fontset[%%d]:~%%~c!"
+            )
         )
     )
-) <"%~1"
+)
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
 :: TODO: make this more advanced
-::        - automatic spriteset loading
-::        - starting position (?)
+::        - automatic spriteset loading -> will be done using transistion events
+::        - starting position -> makes no sense, let transition handle that too
 ::        - tile events
+::
+:: set /p "__spriteset_count="
+:: for /L %%# in ( 1 1 !__spriteset_count! ) do (
+::     set /p "__line="
+::     call :load_spriteset !__line!
+:: )
+
 :load_map  <mapfile>
-:: TODO: load collision map from map file
-set "colmap_hard= 02 03 04 06 05 "
-set "__frame=FF`FF`FF"
-set /a "__count=3"
-for /F "usebackq delims=" %%a in ("%~f1") do (
-    set "__line=%%a"
-    if not defined mapsize (
-        %@strLen% __line mapsize
-        set /a "mapsize-=1"
+ <"%~f1" (
+    set /p "colmap_hard="
+    set "colmap_hard= !colmap_hard! "
+    set /p "__mapsize="
+    set "__frame=FF`FF`FF"
+    for /f "tokens=1,2 delims= " %%a in ("!__mapsize!") do (
+        set "__mapsize_x=%%a"
+        set "__mapsize_y=%%b"
     )
-    set "map[!__count!]=!__frame!`"
-    for %%b in ("map[!__count!]") do (
-        for /L %%c in ( 0 2 !mapsize! ) do (
-            set "%%~b=!%%~b!!__line:~%%c,2!`"
+    set /a "__mapsize_x=__mapsize_x*2-2, __mapsize_y+=2"
+    for /L %%a in ( 3 1 !__mapsize_y! ) do (
+        set /p "__line="
+        set "map[%%a]=!__frame!`"
+        for /L %%b in ( 0 2 !__mapsize_x! ) do (
+            set "map[%%a]=!map[%%a]!!__line:~%%b,2!`"
         )
-        set "%%~b=!%%~b!!__frame!"
+        set "map[%%a]=!map[%%a]!!__frame!"
     )
-    set /a "__count+=1"
 )
-set /a "__count1=__count+1, __count2=__count+2"
+set /a "__mapsize_y+=1, __count1=__mapsize_y+1, __count2=__mapsize_y+2"
 set "__line=!__frame!`"
-for /L %%. in ( 0 2 !mapsize! ) do set "__line=!__line!FF`"
+for /L %%. in ( 0 2 !__mapsize_x! ) do set "__line=!__line!FF`"
 set "__line=!__line!!__frame!"
-for %%a in ( 0 1 2 !__count! !__count1! !__count2! ) do set "map[%%a]=!__line!"
+for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__line!"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
-:setup_macros
+:setup
+set "UPPER=A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
+
+set "HEX=0 1 2 3 4 5 6 7 8 9 A B C D E F "
+
+set "fadeOverCount=0"
+set "fadeLookup=    ฐฑÛÛÛฑฐ "
+
+set #charMap=#  20#!!21#^"^"22###23#$$24#%%%%25#^&^&26#''27#^(^(28#^)^)29#**2A#++2B#,,2C#--2D#..2E#//2F#0030#1131#2232#3333#4434#5535#6636#7737#8838#9939#::3A#;;3B#^<^<3C#==3D#^>^>3E#??3F#@@40#AA41#BB42#CC43#DD44#EE45#FF46#GG47#HH48#II49#JJ4A#KK4B#LL4C#MM4D#NN4E#OO4F#PP50#QQ51#RR52#SS53#TT54#UU55#VV56#WW57#XX58#YY59#ZZ5A#[[5B#\\5C#]]5D#^^^^5E#__5F#``60#aa61#bb62#cc63#dd64#ee65#ff66#gg67#hh68#ii69#jj6A#kk6B#ll6C#mm6D#nn6E#oo6F#pp70#qq71#rr72#ss73#tt74#uu75#vv76#ww77#xx78#yy79#zz7A#{{7B#^|^|7C#}}7D#~~7E
+set /a "fontheight-=1"
+
+:: This is a strange way to get seed, but probably good enough for now
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "random_x32=%%a"
+set "random_x32=%random_x32:.=%"
+set /a "random_x32=0x%random_x32:~-12,-4%"
+
+:: TODO: Only do on VT100
+:: Define ESC as the escape character
+for /f "delims=" %%E in ('forfiles /p "%~dp0." /m "%~nx0" /c "cmd /c echo(0x1B"') do (
+    set "ESC=%%E"
+    <NUL set /p "=%%E[?25l"
+)
+
+:: Fill the spriteset with an empty tile
+for %%s in ( %HEX% ) do (
+    set "spriteset[FF]_%%s=                "
+)
+
+:: define LF as a Line Feed (newline) character
+set ^"LF=^
+%= These lines are required =%
+^" do not remove
+
 :: Define line continuation
 set ^"\n=^^^%LF%%LF%^%LF%%LF%^^"
 
+:: simple Xorshift
+set @randomMoveNext=set /a "random_x32^=random_x32 << 13, random_x32^=random_x32 >> 17, random_x32^=random_x32 << 5"
+
+:: @randomRange  [min] [max]
+set @randomRange=for %%# in (1 2) do if %%#==2 (%\n%
+for /f "tokens=1,2 delims=, " %%1 in ("!argv!") do ( %\n%
+    if "%%2" equ "" ( %\n%
+        set /a "rand=((random_x32>>32&1)*-2+1)*random_x32 + %%1 + 0" %\n%
+    ) else set /a "rand=((random_x32>>32&1)*-2+1)*random_x32 %% (%%2 - min + 1) + %%1 + 0" %\n%
+    %@randomMoveNext% %\n%
+)) else set argv=,
+
+:: TODO: adjust this
 ::@strLen  <strVar> [RtnVar]
 set @strLen=for %%# in (1 2) do if %%#==2 (%\n%
   for /f "tokens=1,2 delims=, " %%1 in ("!argv!") do ( endlocal%\n%
@@ -422,75 +461,76 @@ for %%a in ( 4096 2048 1024 512 256 128 64 32 16 8 4 2 1 ) do if "!s:~%%a,1!" ne
     set /a "len+=%%a" %\n%
     set "s=!s:~%%a!" %\n%
 ) %\n%
-for /L %%b in ( 0 1 !len! ) do for %%c in ("!%%~1:~%%~b,1!") do for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]!!font[%%~c][%%a]! " %\n%
+for /L %%e in ( 0 1 !len! ) do for %%a in ("!%%~1:~%%~e,1!") do ( %\n%
+    set "__current=!#charMap:*#%%~a=!" %\n%
+    if "!__current:~0,1!" neq "%%~a" set "__current=!__current:*#%%~a=!" %\n%
+    set /a "__current=0x!__current:~1,2!*3" %\n%
+    for %%c in ("!__current!") do for /L %%d in ( 0 1 !fontheight! ) do set "%%~2[%%d]=!%%~2[%%d]!!fontset[%%d]:~%%~c,3! " %\n%
+) %\n%
 for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]:~0,-1!" %\n%
 )) else set argv=,
 
 ::@drawOver  <x> <y> <xlen> <ylen> <data>
 ::: draw data over a specified portion of the screen.
+::: x and y start at 1
 set @drawOver=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
-    set /a "yless=%%~4-1" %\n%
-    for /L %%a in ( 0 1 !yless! ) do ( %\n%
-        set /a "y=%%~2+%%a,linenum=y/16,linestart=(y %% 16)*(16*7+2)+%%~1,lineend=linestart+%%~3" %\n%
+    for /L %%a in ( 0 1 %%~4 ) do ( %\n%
+        set /a "y=%%2+%%a-1,linenum=y/16,linestart=(y%% 16)*(16*7+2)+%%1+1,lineend=linestart+%%3" %\n%
         for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
-            set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%~3!!line[%%~b]:~%%~d!" %\n%
+            set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%3!!line[%%~b]:~%%~d!" %\n%
         ) %\n%
     ) %\n%
 )) else set args=,
 
+:: @addDebugData  <dataVar>
+::: adds a entry to the debug overlay for display
+set @addDebugData=for %%# in (1 2) do if %%#==2 ( %\n%
+for /F "tokens=1 delims=, " %%1 in ("!args!") do ( %\n%
+    set "debug_temp= %%1                   "%\n%
+    set "debug_overlay[!debug_overlay[#]!]=บ!debug_temp:~0,20!บ"%\n%
+    set /a "debug_overlay[#]+=2"%\n%
+    set "debug_overlay_list=!debug_overlay_list! %%1"%\n%
+)) else set args=,
+
 :: clear screen by setting cursor to 0:0
+:: Can be switched out for `cls`
 set "@cls=<NUL set /P =%ESC%[H"
 
 :: @sendCmd  command
 :::  sends a command to the controller
 set "@sendCmd=>&%cmdStream% echo"
 
+
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
-:getSession
-::if defined temp (set "tempFileBase=%temp%\") else if defined tmp set "tempFileBase=%tmp%\"
-for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "tempFileBase=%%a"
-set "tempFileBase=%tempFileBase:.=%"
-set "tempFileBase=%tempFileBase:~0,-7%"
-set "tempFileBase=%~dp0Grub4E\%tempFileBase%\"
-set "keyFile=%tempFileBase%key.txt"
-set "cmdFile=%tempFileBase%cmd.txt"
-set "gameLock=%tempFileBase%lock.txt"
-set "gameLog=%tempFileBase%gamelog.txt"
-set "signal=%tempFileBase%signal.txt"
-set "keyStream=9"
-set "cmdStream=8"
-set "lockStream=7"
-if not exist "%tempFileBase%" md "%tempFileBase%"
-:: Lock this game session and launch.
-:: Loop back and try a new session if failure.
-:: Cleanup and exit when finished
-call :launch %lockStream%>"%gameLock%" || goto :getSession
-rd /s /q "%tempFileBase%"
-exit /b
+:: SETUP PART, DELAYED EXPANDED
 
-::------------------------------------------
-:launch
-:: launch the game and the controller
-copy nul "%keyFile%" >nul
-copy nul "%cmdFile%" >nul
-start "" /b cmd /c ^""%~f0" startController %keyStream%^>^>"%keyFile%" %cmdStream%^<"%cmdFile%" 2^>nul ^>nul^"
-cmd /c ^""%~f0" startGame  2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmdFile%" ^<nul^"
-<NUL set /P "=Press any button to quit..."
-:close
-2>nul (>>"%keyFile%" call ) || goto :close
-exit /b 0
+:setupDelayed
+set "count=0"
+set "lineset="
+for %%a in ( %UPPER% ) do (
+    set /a "count+=1"
+    if !count! leq %HORIZONTAL_RES% set "lineset=!lineset!^!spriteset[%%%%a]_%%s^!"
+)
+
+set "empty="
+set "fontset[0]="
+for /L %%_ in ( 1 1 !fontwidth! ) do set "empty=!empty! "
+for /L %%_ in ( 1 1 126 ) do set "fontset[0]=!fontset[0]!!empty!"
+for /L %%a in ( 0 1 !fontheight! ) do set "fontset[%%a]=!fontset[0]!"
+set "empty="
+
+for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+exit /B
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :controller
 :: Detects keypresses and sends the information to the game via a key file.
-::
-:: As written, this routine incorrectly reports ! as ), but that doesn't matter
-:: since we don't need that key. Both <CR> and Enter key are reported as {Enter}.
-:: An extra character is appended to the output to preserve any control chars
-:: when read by SET /P.
+:: This routine incorrectly reports `!` as something else. Both <CR> and the
+:: Enter key are reported as {Enter}. An extra character is appended to the
+:: output to preserve any control chars when read by SET /P.
 setlocal enableDelayedExpansion
 for /f %%a in ('copy /Z "%~dpf0" nul') do set "CR=%%a"
 set "cmd=hold"
@@ -511,7 +551,7 @@ for /l %%. in () do (
         set "inCmd="
     )
     if defined key (
-        >&%keyStream% (echo(!time!#!key!.)
+        >&%keyStream% (echo(!key!.)
         set "key="
     )
 )
