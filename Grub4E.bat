@@ -78,6 +78,16 @@ title [Grub4E] Loading... [ Fonts    ]
 call :load_fontset  data\font.txt
 
 title [Grub4E] Loading... [ Sprites  ]
+
+
+
+call :load_spriteset  data\charas.txt
+set /a "count=0"
+for %%a in ( 00 01 02 03 04 05 06 07 08 09 0A ) do (
+    call :texconvert_alpha %%a char_sprite[!count!]
+    set /a "count+=1"
+)
+
 call :load_spriteset  data\spriteset.txt
 
 title [Grub4E] Loading... [ Map      ]
@@ -85,7 +95,6 @@ call :load_map data\map.txt
 
 set /a "viewport_x=1, viewport_y=1"
 set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
-
 
 if defined DEBUG (
     set "templine=DEBUG"
@@ -104,6 +113,7 @@ if defined DEBUG (
     title [Grub4E] !gametitle!
 )
 
+set "charstate=1"
 set "overCount=0"
 set "fadeOverTime=0"
 set "action_state=fade01"
@@ -122,16 +132,16 @@ for /L %%. in ( infinite ) do (
         for %%b in ("!viewport_x!") do for %%c in ("!HRES!") do set "screen[!count!]=!map[%%a]:~%%~b,%%~c!"
         set /a "count+=1"
     )
-
-    set "screen[3]=!screen[3]:~0,9!08!screen[3]:~11!"
-    for %%l in ( 0 1 2 3 4 5 6 ) do (
-        for /F "tokens=1-16 delims=`" %%A in ("!screen[%%l]!") do (
-            set "line[%%l]="
-            for %%s in ( %HEX% ) do (
-                set "line[%%l]=!line[%%l]!!LF! %lineset%"
+    for %%a in ( %sHeightIter% ) do (
+        set "line[%%a]="
+        for /F "tokens=1-16 delims=`" %%A in ("!screen[%%a]!") do (
+            for %%b in ( 0 16 32 48 64 80 96 112 128 144 160 176 192 208 224 240 ) do (
+                set "line[%%a]=!line[%%a]!!LF! !spriteset[%%A]:~%%b,16!!spriteset[%%B]:~%%b,16!!spriteset[%%C]:~%%b,16!!spriteset[%%D]:~%%b,16!!spriteset[%%E]:~%%b,16!!spriteset[%%F]:~%%b,16!!spriteset[%%G]:~%%b,16!"
             )
         )
+        set "line[%%a]=!line[%%a]:~1!"
     )
+    %@drawOverAlpha% 49 49 char_sprite[!charstate!]
 
     %= EXECUTE FADING COMMAND =%
     if "!action_state:~0,4!" equ "fade" (
@@ -154,7 +164,6 @@ for /L %%. in ( infinite ) do (
     )
 
     %= DEBUG OVERLAY =%
-    if defined DEBUG %@drawOver% 94 108 19 5 debug_line
     if "!debug_overlay!"== "1" (
         set "debug_count=2"
         for %%a in ( !debug_overlay_list! ) do (
@@ -169,8 +178,8 @@ for /L %%. in ( infinite ) do (
     %= FLIP =%
     %@cls%
     echo(
-    for %%l in ( 0 1 2 3 4 5 6 ) do (
-        echo(!line[%%l]:~1!
+    for %%l in ( %sHeightIter% ) do (
+        echo(!line[%%l]:.= !
     )
 
     %= PROCESS INPUT =%
@@ -178,21 +187,21 @@ for /L %%. in ( infinite ) do (
     for /L %%: in ( 1 1 %MAXSIMULTKEYS% ) do (
         set "inKey="
         <&%keyStream% set /p "inKey="
-        if defined inKey set "key_list=!key_list!#!inKey:~0,-1!"
+        if defined inKey set "key_list=!key_list!!inKey:~0,-1!"
     )
     %= Clear action events =%
     for %%a in ( %action_events% ) do set "action_%%a="
     %= translate keypresses into action events =%
     if defined key_list (
-        set "key_list=!key_list!#"
+        set "key_list=!key_list!"
         %= emergency quit button =%
-        if "!key_list!" neq "!key_list:#+#=!" (
+        if "!key_list!" neq "!key_list:+=!" (
             %@sendCmd% quit
             exit
         )
         for %%a in ( %action_events% ) do (
             for %%b in ("!keybind[%%a]!") do (
-                if "!key_list!" neq "!key_list:%%~b#=!" set "action_%%a=1"
+                if "!key_list!" neq "!key_list:%%~b=!" set "action_%%a=1"
             )
         )
     )
@@ -214,34 +223,37 @@ for /L %%. in ( infinite ) do (
 
     %= EXECUTE GAME LOGIC =%
     if "!action_state!"=="map" (
+        set "col_check="
         if defined action_up (
-            set "move=1"
-            for %%a in ( FF !colmap_hard! ) do (
-                if "!screen[2]:~9,2!" equ "%%a" set "move="
-            )
-            if defined move set /a "viewport_y_0-=1, viewport_y_1-=1"
+            if !charstate! equ 4 (
+                set "col_check=!screen[2]:~9,2!"
+                set "viewShift=viewport_y_0-=1, viewport_y_1-=1"
+            ) else set "charstate=4"
         )
         if defined action_down (
-            set "move=1"
-            for %%a in ( FF !colmap_hard! ) do (
-                if "!screen[4]:~9,2!" equ "%%a" set "move="
-            )
-            if defined move set /a "viewport_y_0+=1, viewport_y_1+=1"
+            if !charstate! equ 1 (
+                set "col_check=!screen[4]:~9,2!"
+                set "viewShift=viewport_y_0+=1, viewport_y_1+=1"
+            ) else set "charstate=1"
         )
         if defined action_left (
-            set "move=1"
-            for %%a in ( FF !colmap_hard! ) do (
-                if "!screen[3]:~6,2!" equ "%%a" set "move="
-            )
-            if defined move set /a "viewport_x-=3"
-
+            if !charstate! equ 6 (
+                set "col_check=!screen[3]:~6,2!"
+                set "viewShift=viewport_x-=3"
+            ) else set "charstate=6"
         )
         if defined action_right (
+            if !charstate! equ 8 (
+                set "col_check=!screen[3]:~12,2!"
+                set "viewShift=viewport_x+=3"
+            ) else set "charstate=8"
+        )
+        if defined col_check (
             set "move=1"
             for %%a in ( FF !colmap_hard! ) do (
-                if "!screen[3]:~12,2!" equ "%%a" set "move="
+                if "!col_check!" equ "%%a" set "move="
             )
-            if defined move set /a "viewport_x+=3"
+            if defined move set /a "!viewShift!"
         )
         if defined action_menu set "action_state=menu"
     ) else if "!action_state!"=="menu" (
@@ -250,25 +262,30 @@ for /L %%. in ( infinite ) do (
     )
 )
 
-:: REVIEW: Use hex for numbers or not? change to normal
+:: TODO convert to macro
 :load_spriteset  <spritefile> <offset>
 :: loads a tilefile into the tilebuffer
 set "__map=0123456789ABCDEF"
-(
-    set /P "__spritecount="
-    set /a "__off=%~2+0,__spritecount+=off"
-    for /L %%# in ( !__off! 1 !__spritecount! ) do (
-        set "__hex="
-        set "__dec=%%#"
-        for %%n in ( 0 1 ) do (
-            set /a "__d=__dec&15,__dec>>=4"
-            for %%d in (!__d!) do set "__hex=!__map:~%%d,1!!__hex!"
+ <"%~f1" (
+    set /P "__end="
+    set /a "__start=(%~2+0),__end+=__start"
+    for /L %%a in ( !__start! 1 !__end! ) do (
+        set /a "dec=%%a"
+        set "hex="
+        for %%_ in ( 1 2 ) do (
+            set /a "d=dec&15,dec>>=4"
+            for %%d in (!d!) do set "hex=!__map:~%%d,1!!hex!"
         )
-        for %%s in ( %HEX% ) do (
-            set /P "spriteset[!__hex!]_%%s="
+        for %%b in ("!hex!") do (
+            set "spriteset[%%~b]="
+            for %%_ in ( %tHeightIter% ) do (
+                set /P "__inLine="
+                set "spriteset[%%~b]=!spriteset[%%~b]!!__inLine!"
+            )
         )
     )
-) < "%~1"
+)
+
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
@@ -329,31 +346,36 @@ for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__lin
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
-:texconvert_alpha  <textureArray>
-set "__line=!%~1[0]!"
-(%@strLen% __line __length)
-set /a "__length-=1, %~1_alpha[#]=-1"
-for /L %%a in ( 0 1 !%~1[#]! ) do (
+:texconvert_alpha  <spritePtr> <outputArray>
+set "%~2="
+for %%a in ( %tHeightIter% ) do (
     set /a "__mode=0"
-    for /L %%b in ( 0 1 !__length! ) do (
-        if "!%~1[%%a]:~%%b,1!" neq "." (
-            if !__mode! equ 0 (
-                set /a "%~1_alpha[#]+=1"
-                set "outlen=1"
-                set "outline=%%b`%%a`!%~1[%%a]:~%%b,1!"
-                set "__mode=1"
+    for %%b in ( %tWidthIter% ) do (
+        set /a "__pos=%%a * 16 + %%b"
+        for %%c in ("!__pos!") do (
+            set "__current=!spriteset[%~1]:~%%~c,1!"
+            if "!__current!" neq "." (
+                if !__mode! equ 0 (
+                    set "outlen=1"
+                    set "outline=%%b`%%a`!__current!"
+                    set "__mode=1"
+                ) else (
+                    set "outline=!outline!!__current!"
+                    set /a "outlen+=1"
+                )
             ) else (
-                set "outline=!outline!!%~1[%%a]:~%%b,1!"
-                set /a "outlen+=1"
-            )
-        ) else (
-            if !__mode! equ 1 (
-                set "%~1_alpha[!%~1_alpha[#]!]=!outline!`!outlen!"
-                set "__mode=0"
+                if !__mode! equ 1 (
+                    set "%~2=!%~2!!outline!`!outlen!,"
+                    set "__mode=0"
+                )
             )
         )
     )
-    if !__mode! equ 1 set "%~1_alpha[!%~1_alpha[#]!]=!outline!`!outlen!"
+    if !__mode! equ 1 set "%~2=!%~2!!outline!`!outlen!,"
+)
+if defined %~2 (
+    set "%~2=!%~2:~0,-1!"
+    set "%~2=!%~2: =.!"
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
@@ -363,11 +385,29 @@ set "UPPER=A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
 
 set "HEX=0 1 2 3 4 5 6 7 8 9 A B C D E F "
 
+set "spriteset[FF]=                                                                                                                                                                                                                                                                "
+
+
+:: TODO: These values have to dynamically be loaded
+set /a "sHeight=7, sWidth=7"
+set /a "tWidth=16, tHeight=16"
+set /a "fontheight=5, fontwidth=3"
+
+set "sWidthIter=0 1 2 3 4 5 6"
+set "tWidthIter=0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
+set "sHeightIter=%sWidthIter%"
+set "tHeightIter=%tWidthIter%"
+set /a "fontheight-=1"
+
+set /a "spriteSetLength=0xFF"
+
+set /a "maxMapVal=spriteSetLength * tWidth"
+
 set "fadeOverCount=0"
 set "fadeLookup=    ∞±€€€±∞ "
 
 set #charMap=#  20#!!21#^"^"22###23#$$24#%%%%25#^&^&26#''27#^(^(28#^)^)29#**2A#++2B#,,2C#--2D#..2E#//2F#0030#1131#2232#3333#4434#5535#6636#7737#8838#9939#::3A#;;3B#^<^<3C#==3D#^>^>3E#??3F#@@40#AA41#BB42#CC43#DD44#EE45#FF46#GG47#HH48#II49#JJ4A#KK4B#LL4C#MM4D#NN4E#OO4F#PP50#QQ51#RR52#SS53#TT54#UU55#VV56#WW57#XX58#YY59#ZZ5A#[[5B#\\5C#]]5D#^^^^5E#__5F#``60#aa61#bb62#cc63#dd64#ee65#ff66#gg67#hh68#ii69#jj6A#kk6B#ll6C#mm6D#nn6E#oo6F#pp70#qq71#rr72#ss73#tt74#uu75#vv76#ww77#xx78#yy79#zz7A#{{7B#^|^|7C#}}7D#~~7E
-set /a "fontheight-=1"
+
 
 :: This is a strange way to get seed, but probably good enough for now
 for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "random_x32=%%a"
@@ -378,11 +418,6 @@ set /a "random_x32=0x%random_x32:~-12,-4%"
 for /f "delims=" %%E in ('forfiles /p "%~dp0." /m "%~nx0" /c "cmd /c echo(0x1B"') do (
     set "ESC=%%E"
     <NUL set /p "=%%E[?25l"
-)
-
-:: Fill the spriteset with an empty tile
-for %%s in ( %HEX% ) do (
-    set "spriteset[FF]_%%s=                "
 )
 
 :: define LF as a Line Feed (newline) character
@@ -446,7 +481,7 @@ for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]:~0,-1!" %\n%
 set @drawOver=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
     for /L %%a in ( 0 1 %%~4 ) do ( %\n%
-        set /a "y=%%2+%%a-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+1,lineend=linestart+%%3" %\n%
+        set /a "y=%%2+%%a-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1,lineend=linestart+%%3" %\n%
         for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
             set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%3!!line[%%~b]:~%%~d!" %\n%
         ) %\n%
@@ -459,8 +494,8 @@ for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
 ::: x and y start at 1
 set @drawOverAlpha=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-3 delims=, " %%1 in ("!args!") do ( %\n%
-    for /L %%a in ( 0 1 !%%~3[#]! ) do ( %\n%
-        for /F "tokens=1-4 delims=`" %%4 in ("!%%~3[%%a]!") do (%\n%
+    for %%a in ( !%%~3! ) do ( %\n%
+        for /F "tokens=1-4 delims=`" %%4 in ("%%a") do (%\n%
             set /a "y=%%2+%%5-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+%%4+1,lineend=linestart+%%7" %\n%
             for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
                 set "line[%%b]=!line[%%~b]:~0,%%~c!%%6!line[%%~b]:~%%~d!" %\n%
