@@ -54,15 +54,7 @@ cmd /c ^""%~f0" startGame  2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmd
 exit /b 0
 
 :game
-set "VERTICAL_RES=8"
-set "HORIZONTAL_RES=8"
-set "MAXSIMULTKEYS=10"
-
-set /a "fontheight=5, fontwidth=3"
-
-set "GAMETITLE=Demo game"
-
-set /a "VERTICAL_RES-=1, HORIZONTAL_RES-=1"
+for /F "usebackq delims=" %%a in ("data\game.txt") do set "%%a"
 
 call :setup
 setlocal EnableDelayedExpansion
@@ -94,7 +86,7 @@ title [Grub4E] Loading... [ Map      ]
 call :load_map data\map.txt
 
 set /a "viewport_x=1, viewport_y=1"
-set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
+set /a "viewport_x=viewport_x * 3, hRes= sHeight *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + sWidth"
 
 if defined DEBUG (
     set "templine=DEBUG"
@@ -114,8 +106,6 @@ if defined DEBUG (
 )
 
 set "charstate=1"
-set "overCount=0"
-set "fadeOverTime=0"
 set "action_state=fade01"
 set "action_state_next=map"
 
@@ -132,6 +122,7 @@ for /L %%. in ( infinite ) do (
         for %%b in ("!viewport_x!") do for %%c in ("!HRES!") do set "screen[!count!]=!map[%%a]:~%%~b,%%~c!"
         set /a "count+=1"
     )
+    :: TODO fix this to be dynamic
     for %%a in ( %sHeightIter% ) do (
         set "line[%%a]="
         for /F "tokens=1-16 delims=`" %%A in ("!screen[%%a]!") do (
@@ -141,7 +132,7 @@ for /L %%. in ( infinite ) do (
         )
         set "line[%%a]=!line[%%a]:~1!"
     )
-    %@drawOverAlpha% 49 49 char_sprite[!charstate!]
+    %@drawOverAlpha% 48 48 char_sprite[!charstate!]
 
     %= EXECUTE FADING COMMAND =%
     if "!action_state:~0,4!" equ "fade" (
@@ -217,7 +208,7 @@ for /L %%. in ( infinite ) do (
             set "action_state_next=map"
             call :load_map data\map2.txt
             set /a "viewport_x=4, viewport_y=0"
-            set /a "viewport_x=viewport_x * 3, HRES= HORIZONTAL_RES *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + VERTICAL_RES"
+            set /a "viewport_x=viewport_x * 3, HRES= sWidth *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + sHeight"
         )
     )
 
@@ -381,28 +372,11 @@ for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 exit /B
 
 :setup
-set "UPPER=A B C D E F G H I J K L M N O P Q R S T U V W X Y Z"
-
-set "HEX=0 1 2 3 4 5 6 7 8 9 A B C D E F "
-
 set "spriteset[FF]=                                                                                                                                                                                                                                                                "
 
-
-:: TODO: These values have to dynamically be loaded
-set /a "sHeight=7, sWidth=7"
-set /a "tWidth=16, tHeight=16"
-set /a "fontheight=5, fontwidth=3"
-
-set "sWidthIter=0 1 2 3 4 5 6"
-set "tWidthIter=0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"
-set "sHeightIter=%sWidthIter%"
-set "tHeightIter=%tWidthIter%"
 set /a "fontheight-=1"
 
-set /a "spriteSetLength=0xFF"
-
-set /a "maxMapVal=spriteSetLength * tWidth"
-
+set "fadeOverTime=0"
 set "fadeOverCount=0"
 set "fadeLookup=    ∞±€€€±∞ "
 
@@ -481,7 +455,7 @@ for /L %%a in ( 0 1 !fontheight! ) do set "%%~2[%%a]=!%%~2[%%a]:~0,-1!" %\n%
 set @drawOver=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-5 delims=, " %%1 in ("!args!") do ( %\n%
     for /L %%a in ( 0 1 %%~4 ) do ( %\n%
-        set /a "y=%%2+%%a-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1,lineend=linestart+%%3" %\n%
+        set /a "y=%%2+%%a,linenum=y/16,linestart=(y%% 16)*(16*%sWidth%+2)+%%1,lineend=linestart+%%3" %\n%
         for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
             set "line[%%b]=!line[%%~b]:~0,%%~c!!%%~5[%%a]:~0,%%3!!line[%%~b]:~%%~d!" %\n%
         ) %\n%
@@ -496,7 +470,7 @@ set @drawOverAlpha=for %%# in (1 2) do if %%#==2 ( %\n%
 for /F "tokens=1-3 delims=, " %%1 in ("!args!") do ( %\n%
     for %%a in ( !%%~3! ) do ( %\n%
         for /F "tokens=1-4 delims=`" %%4 in ("%%a") do (%\n%
-            set /a "y=%%2+%%5-1,linenum=y/16,linestart=(y%% 16)*(16*%HORIZONTAL_RES%+2)+%%1+%%4+1,lineend=linestart+%%7" %\n%
+            set /a "y=%%2+%%5,linenum=y/16,linestart=(y%% 16)*(16*%sWidth%+2)+%%1+%%4+1,lineend=linestart+%%7" %\n%
             for /f "tokens=1-3" %%b in ("!linenum! !linestart! !lineend!") do ( %\n%
                 set "line[%%b]=!line[%%~b]:~0,%%~c!%%6!line[%%~b]:~%%~d!" %\n%
             ) %\n%
@@ -531,9 +505,9 @@ exit /B
 :setupDelayed
 set "count=0"
 set "lineset="
-for %%a in ( %UPPER% ) do (
+for %%a in ( A B C D E F G H I J K L M N O P Q R S T U V W X Y Z ) do (
     set /a "count+=1"
-    if !count! leq %HORIZONTAL_RES% set "lineset=!lineset!^!spriteset[%%%%a]_%%s^!"
+    if !count! leq %sWidth% set "lineset=!lineset!^!spriteset[%%%%a]_%%s^!"
 )
 
 set "empty="
