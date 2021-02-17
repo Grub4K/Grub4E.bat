@@ -46,6 +46,7 @@ exit /b
 :: launch the game and the controller
 copy nul "%keyFile%" >nul
 copy nul "%cmdFile%" >nul
+copy nul "%gameLog%" >nul
 start "" /b cmd /c ^""%~f0" startController %keyStream%^>^>"%keyFile%" %cmdStream%^<"%cmdFile%" 2^>nul ^>nul^"
 cmd /c ^""%~f0" startGame  2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmdFile%" ^<nul^"
 <NUL set /P "=Press any button to quit..."
@@ -61,15 +62,14 @@ setlocal EnableDelayedExpansion
 call :setupDelayed
 
 :: DONE SETTING UP ENGINE
-title [Grub4E] !gametitle!
 
-title [Grub4E] Loading... [ Keybinds ]
+title [%eID%] Loading... [ Keybinds ]
 call :load_keybinds  save\keybinds.txt
 
-title [Grub4E] Loading... [ Fonts    ]
+title [%eID%] Loading... [ Fonts    ]
 call :load_fontset  data\font.txt
 
-title [Grub4E] Loading... [ Sprites  ]
+title [%eID%] Loading... [ Sprites  ]
 
 
 
@@ -82,12 +82,13 @@ for %%a in ( 00 01 02 03 04 05 06 07 08 09 0A ) do (
 
 call :load_spriteset  data\spriteset.txt
 
-title [Grub4E] Loading... [ Map      ]
+title [%eID%] Loading... [ Map      ]
 call :load_map data\map.txt
 
 set /a "viewport_x=1, viewport_y=1"
-set /a "viewport_x=viewport_x * 3, hRes= sHeight *3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + sWidth"
+set /a "viewport_x=viewport_x * 3, hRes=sHeight * 3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + sWidth"
 
+title [%eID%] !gametitle!
 if defined DEBUG (
     set "templine=DEBUG"
     %@renderFont% templine debug_line
@@ -102,7 +103,6 @@ if defined DEBUG (
     set "action_events=!action_events! transition debug "
     set "debug_overlay=1"
     set "keybind[transition]=x"
-    title [Grub4E] !gametitle!
 )
 
 set "charstate=1"
@@ -256,6 +256,10 @@ for /L %%. in ( infinite ) do (
 :: TODO convert to macro
 :load_spriteset  <spritefile> <offset>
 :: loads a tilefile into the tilebuffer
+if not exist "%~f1" (
+    %@log% Error opening file "%~1"
+    exit /B
+)
 set "__map=0123456789ABCDEF"
  <"%~f1" (
     set /P "__end="
@@ -273,11 +277,12 @@ set "__map=0123456789ABCDEF"
                 set /P "__inLine="
                 set "spriteset[%%~b]=!spriteset[%%~b]!!__inLine!"
             )
+            %@log% Created: spriteset[%%~b]: !spriteset[%%~b]!
         )
     )
 )
-
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+%@log% Loaded spriteset from "%~1"
 exit /B
 
 :load_keybinds  <keybindsfile>
@@ -289,9 +294,14 @@ set "keybind[right]=d"
 set "keybind[confirm]=e"
 set "keybind[cancel]=q"
 set "keybind[menu]={Enter}"
+%@log% Loaded keybinds from "%~1":dummy
 exit /B
 
 :load_fontset  <fontset>
+if not exist "%~f1" (
+    %@log% Error opening file "%~1"
+    exit /B
+)
 <"%~1" (
     set /p "__fontmap="
     %@strLen% __fontmap __fontcount
@@ -307,10 +317,15 @@ exit /B
     )
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+%@log% Loaded fontset from "%~1"
 exit /B
 
 :load_map  <mapfile>
- <"%~f1" (
+if not exist "%~f1" (
+    %@log% Error opening file "%~1"
+    exit /B
+)
+<"%~f1" (
     set /p "colmap_hard="
     set "colmap_hard= !colmap_hard! "
     set /p "__mapsize="
@@ -335,6 +350,7 @@ for /L %%. in ( 0 2 !__mapsize_x! ) do set "__line=!__line!FF`"
 set "__line=!__line!!__frame!"
 for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__line!"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+%@log% Loaded map from "%~1"
 exit /B
 
 :texconvert_alpha  <spritePtr> <outputArray>
@@ -369,9 +385,13 @@ if defined %~2 (
     set "%~2=!%~2: =.!"
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+%@log% Converted 0x%~1 to %~2: !%~2!
 exit /B
 
 :setup
+set "eID=Grub4E"
+if defined DEBUG set "eID=%eID%:DEBUG"
+
 set "spriteset[FF]=                                                                                                                                                                                                                                                                "
 
 set /a "fontheight-=1"
@@ -382,6 +402,7 @@ set "fadeLookup=    ∞±€€€±∞ "
 
 set #charMap=#  20#!!21#^"^"22###23#$$24#%%%%25#^&^&26#''27#^(^(28#^)^)29#**2A#++2B#,,2C#--2D#..2E#//2F#0030#1131#2232#3333#4434#5535#6636#7737#8838#9939#::3A#;;3B#^<^<3C#==3D#^>^>3E#??3F#@@40#AA41#BB42#CC43#DD44#EE45#FF46#GG47#HH48#II49#JJ4A#KK4B#LL4C#MM4D#NN4E#OO4F#PP50#QQ51#RR52#SS53#TT54#UU55#VV56#WW57#XX58#YY59#ZZ5A#[[5B#\\5C#]]5D#^^^^5E#__5F#``60#aa61#bb62#cc63#dd64#ee65#ff66#gg67#hh68#ii69#jj6A#kk6B#ll6C#mm6D#nn6E#oo6F#pp70#qq71#rr72#ss73#tt74#uu75#vv76#ww77#xx78#yy79#zz7A#{{7B#^|^|7C#}}7D#~~7E
 
+set @log=^>^>"%gameLog%" echo !time::=-!:
 
 :: This is a strange way to get seed, but probably good enough for now
 for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "random_x32=%%a"
@@ -498,6 +519,7 @@ set "@sendCmd=>&%cmdStream% echo"
 
 
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+%@log% Finished normal setup
 exit /B
 
 :: SETUP PART, DELAYED EXPANDED
@@ -518,6 +540,7 @@ for /L %%a in ( 0 1 !fontheight! ) do set "fontset[%%a]=!fontset[0]!"
 set "empty="
 
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+%@log% Finished delayed setup
 exit /B
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
