@@ -100,8 +100,7 @@ if defined DEBUG (
     set "keybind[transition]=x"
 )
 
-set "colmap_soft=4#0#special#transition`1 3#7#special#transition`2 4#7#special#transition`2"
-set "transitions=map2.txt,4,0 map2.txt,4,7"
+set "colmap_soft=4#0#special#transition`map2.txt`4`0 3#7#special#transition`map2.txt`4`7 4#7#special#transition`map2.txt`4`7"
 
 set "charstate=1"
 set "action_state=fade01"
@@ -139,6 +138,7 @@ for /L %%. in ( infinite ) do (
             set /a "fadeStateFrom=fadeOff+%%a, fadeStateTo=fadeMul*fadeOverCount+fadeAdd+%%a"
             for /F "tokens=1,2 delims=`" %%b in ("!fadeStateFrom!`!fadeStateTo!") do (
                 for /F "tokens=1,2 delims=`" %%d in ("!fadeLookup:~%%~b,1!`!fadeLookup:~%%~c,1!") do (
+                    %= TODO use variable for this =%
                     for %%l in ( 0 1 2 3 4 5 6 ) do (
                         set "line[%%l]=!line[%%l]:%%~d=%%~e!"
                     )
@@ -201,35 +201,20 @@ for /L %%. in ( infinite ) do (
 
     %= MAP TRANSITIONS =%
     if "!action_state:~0,10!" equ "transition" (
-        set "_cur_t= !transitions! "
-        %@log% #!_cur_t!# [1 1 !action_state:*:=!]
-
-        %= TODO fix this somehow, slicing does not work =%
-
-        >>"%gameLog%" echo !time!: REAL: !action_state:*:=!
-        for /L %%- in ( 1 1 !action_state:*:=! ) do (
-            set "_cur_t=!_cur_t:* =!"
-            %@log% #!_cur_t!#
-        )
-        for /F "tokens=1 delims= " %%A in ("!_cur_t!") do (
-            set "action_state_next=_transition:%%A"
-            %@log% IMP: !action_state:*:=! _transition:%%A
-        )
+        set "action_state_next=_transition:!action_state:*:=!"
         set "action_state=fade00"
-        set "_cur_t="
         set "halt_action_translation=1"
     ) else if "!action_state!" equ "_transition_end" (
         set "halt_action_translation="
         set "action_state=map"
     ) else if "!action_state:~0,11!" equ "_transition" (
-        for /F "tokens=1-3 delims=," %%W in ("!action_state:*:=!") do (
+        for /F "tokens=1-3 delims=`" %%W in ("!action_state:*:=!") do (
             call :load_map "data\maps\%%W"
             %@log% Setting Position to ^(%%X,%%Y^)
-            set /a "viewport_x=%%X * 3, HRES=sWidth *3, viewport_y_0=%%Y, viewport_y_1=%%Y + sHeight"
+            set /a "viewport_x=%%X * 3, hRes=sWidth * 3, viewport_y_0=%%Y, viewport_y_1=%%Y + sHeight"
         )
         set "action_state=fade01"
         set "action_state_next=_transition_end"
-        set "_cur_t="
     )
     %= EXECUTE GAME LOGIC =%
     if "!action_state!"=="map" (
@@ -267,17 +252,18 @@ for /L %%. in ( infinite ) do (
             if defined move (
                 set "move=1"
                 %= soft collision =%
-                set /a "_viewport_x=viewport_x, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0"
+                %= TODO better approach =%
+                set /a "_viewport_x=viewport_x, _viewport_y_1=viewport_y_1, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0, viewport_y_1=_viewport_y_1"
                 for %%a in ( !colmap_soft! ) do (
                     for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
                         if "%%b#%%c"=="!x_pos!#!y_pos!" (
                             if "%%d"=="special" (
-                                for /F "tokens=1,2* delims=`" %%A in ("%%e") do (
-                                    set "args=%%B"
-                                    %@log% # e=%%e # A=%%A # B=%%B #
-                                    if "%%A"=="transition" (
-                                        set "action_state=transition:!args:`= !"
-                                    )
+                                set "args=%%e"
+                                set "args=!args:*`=!"
+                                for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
+                                if "!func!"=="transition" (
+                                    set "action_state=transition:!args!"
+                                    %@log% Passed to transition: "!args!"
                                 )
                             ) else (
                                 set "args=%%e"
@@ -321,7 +307,6 @@ set "__map=0123456789ABCDEF"
                 set /P "__inLine="
                 set "spriteset[%%~b]=!spriteset[%%~b]!!__inLine!"
             )
-            %@log% Created: spriteset[%%~b]: !spriteset[%%~b]!
         )
     )
 )
@@ -393,6 +378,11 @@ set "__line=!__frame!`"
 for /L %%_ in ( 0 2 !__mapsize_x! ) do set "__line=!__line!FF`"
 set "__line=!__line!!__frame!"
 for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__line!"
+
+
+for /L %%_ in ( 0 1 !__count2! ) do %@log% map[%%_]: "!map[%%_]!"
+
+
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 %@log% Loaded map from "%~1"
 exit /B
@@ -429,7 +419,7 @@ if defined %~2 (
     set "%~2=!%~2: =.!"
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
-%@log% Converted 0x%~1 to %~2: !%~2!
+%@log% Converted 0x%~1 to %~2
 exit /B
 
 :init
