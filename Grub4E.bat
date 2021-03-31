@@ -57,26 +57,26 @@ call :init_delayed
 
 :: TODO have first loader
 title [%eID%] Loading... [ Keybinds ]
-call :load_keybinds  save\keybinds.txt
+call :load_keybinds  save\sprites\keybinds.txt
 
 title [%eID%] Loading... [ Fonts    ]
-call :load_fontset  data\font.txt
+call :load_fontset  data\sprites\font.txt
 
 title [%eID%] Loading... [ Sprites  ]
 
 
 ::TODO subroutine for this
-call :load_spriteset  data\charas.txt
+call :load_spriteset  data\sprites\charas.txt
 set /a "count=0"
 for %%a in ( 00 01 02 03 04 05 06 07 08 09 0A ) do (
     call :texconvert_alpha %%a char_sprite[!count!]
     set /a "count+=1"
 )
 
-call :load_spriteset  data\spriteset.txt
+call :load_spriteset  data\sprites\spriteset.txt
 
 title [%eID%] Loading... [ Map      ]
-call :load_map data\map.txt
+call :load_map data\maps\map.txt
 
 set /a "viewport_x=1, viewport_y=1"
 set /a "viewport_x=viewport_x * 3, hRes=sHeight * 3, viewport_y_0=viewport_y, viewport_y_1=viewport_y + sWidth"
@@ -91,12 +91,17 @@ if defined DEBUG (
     %@addDebugData% tDiff
     %@addDebugData% action_state
     %@addDebugData% fadeOverTime
+    %@addDebugData% x_pos
+    %@addDebugData% viewport_y_0
     set "debug_overlay[0]=ษออออออออออออออออออออป"
     set "keybind[debug]=#"
     set "action_events=!action_events! transition debug "
     set "debug_overlay=1"
     set "keybind[transition]=x"
 )
+
+set "colmap_soft=4#0#special#transition`1 3#7#special#transition`2 4#7#special#transition`2"
+set "transitions=map2.txt,4,0 map2.txt,4,7"
 
 set "charstate=1"
 set "action_state=fade01"
@@ -196,18 +201,30 @@ for /L %%. in ( infinite ) do (
 
     %= MAP TRANSITIONS =%
     if "!action_state:~0,10!" equ "transition" (
-        set "_cur_t=!transitions!"
-        for /L %%_ in ( 1 1 !action_state:~11! ) do set "_cur_t=!_cur_t:*:=!"
-        for /F "tokens=1 delims=:" %%A in ("!_cur_t!") do set "action_state_next=_transition:%%A"
+        set "_cur_t= !transitions! "
+        %@log% #!_cur_t!# [1 1 !action_state:*:=!]
+
+        %= TODO fix this somehow, slicing does not work =%
+
+        >>"%gameLog%" echo !time!: REAL: !action_state:*:=!
+        for /L %%- in ( 1 1 !action_state:*:=! ) do (
+            set "_cur_t=!_cur_t:* =!"
+            %@log% #!_cur_t!#
+        )
+        for /F "tokens=1 delims= " %%A in ("!_cur_t!") do (
+            set "action_state_next=_transition:%%A"
+            %@log% IMP: !action_state:*:=! _transition:%%A
+        )
         set "action_state=fade00"
         set "_cur_t="
         set "halt_action_translation=1"
-    ) else if "!action_state:~0,11!" equ "_transition_end" (
+    ) else if "!action_state!" equ "_transition_end" (
         set "halt_action_translation="
         set "action_state=map"
     ) else if "!action_state:~0,11!" equ "_transition" (
-        for /F "tokens=1-4 delims=," %%W in ("!action_state:~11!") do (
+        for /F "tokens=1-3 delims=," %%W in ("!action_state:*:=!") do (
             call :load_map "data\maps\%%W"
+            %@log% Setting Position to ^(%%X,%%Y^)
             set /a "viewport_x=%%X * 3, HRES=sWidth *3, viewport_y_0=%%Y, viewport_y_1=%%Y + sHeight"
         )
         set "action_state=fade01"
@@ -242,11 +259,35 @@ for /L %%. in ( infinite ) do (
             ) else set "charstate=8"
         )
         if defined col_check (
+            %= hard collision =%
             set "move=1"
             for %%a in ( FF !colmap_hard! ) do (
                 if "!col_check!" equ "%%a" set "move="
             )
-            if defined move set /a "!viewShift!"
+            if defined move (
+                set "move=1"
+                %= soft collision =%
+                set /a "_viewport_x=viewport_x, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0"
+                for %%a in ( !colmap_soft! ) do (
+                    for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
+                        if "%%b#%%c"=="!x_pos!#!y_pos!" (
+                            if "%%d"=="special" (
+                                for /F "tokens=1,2* delims=`" %%A in ("%%e") do (
+                                    set "args=%%B"
+                                    %@log% # e=%%e # A=%%A # B=%%B #
+                                    if "%%A"=="transition" (
+                                        set "action_state=transition:!args:`= !"
+                                    )
+                                )
+                            ) else (
+                                set "args=%%e"
+                                call :%%d !args:`= !
+                            )
+                        )
+                    )
+                )
+                if defined move set /a "!viewShift!"
+            )
         ) else (
             if defined action_menu set "action_state=menu"
         )
@@ -407,7 +448,7 @@ set "fadeLookup=    ฐฑÛÛÛฑฐ "
 
 set #charMap=#  20#!!21#^"^"22###23#$$24#%%%%25#^&^&26#''27#^(^(28#^)^)29#**2A#++2B#,,2C#--2D#..2E#//2F#0030#1131#2232#3333#4434#5535#6636#7737#8838#9939#::3A#;;3B#^<^<3C#==3D#^>^>3E#??3F#@@40#AA41#BB42#CC43#DD44#EE45#FF46#GG47#HH48#II49#JJ4A#KK4B#LL4C#MM4D#NN4E#OO4F#PP50#QQ51#RR52#SS53#TT54#UU55#VV56#WW57#XX58#YY59#ZZ5A#[[5B#\\5C#]]5D#^^^^5E#__5F#``60#aa61#bb62#cc63#dd64#ee65#ff66#gg67#hh68#ii69#jj6A#kk6B#ll6C#mm6D#nn6E#oo6F#pp70#qq71#rr72#ss73#tt74#uu75#vv76#ww77#xx78#yy79#zz7A#{{7B#^|^|7C#}}7D#~~7E
 
-set @log=call ^>^>"%gameLog%" echo %%time::=-%%:
+set @log=^>^>"%gameLog%" echo !time::=-!:
 
 :: This is a strange way to get seed, but probably good enough for now
 for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "random_x32=%%a"
