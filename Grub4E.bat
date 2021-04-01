@@ -57,14 +57,12 @@ call :init_delayed
 
 :: TODO have first loader
 title [%eID%] Loading... [ Keybinds ]
-call :load_keybinds  save\sprites\keybinds.txt
+call :load_keybinds  save\keybinds.txt
 
 title [%eID%] Loading... [ Fonts    ]
 call :load_fontset  data\sprites\font.txt
 
 title [%eID%] Loading... [ Sprites  ]
-
-
 ::TODO subroutine for this
 call :load_spriteset  data\sprites\charas.txt
 set /a "count=0"
@@ -83,9 +81,6 @@ set /a "viewport_x=viewport_x * 3, hRes=sHeight * 3, viewport_y_0=viewport_y, vi
 
 title [%eID%] !gametitle!
 if defined DEBUG (
-    set "templine=DEBUG"
-    %@renderFont% templine debug_line
-    set "templine="
     set "debug_overlay[#]=1"
     set "debug_overlay_list="
     %@addDebugData% tDiff
@@ -100,7 +95,10 @@ if defined DEBUG (
     set "keybind[transition]=x"
 )
 
-set "colmap_soft=4#0#special#transition`map2.txt`4`0 3#7#special#transition`map2.txt`4`7 4#7#special#transition`map2.txt`4`7"
+:: TODO special soft collision for arrow showing
+
+set "interations=3#0#special#dialog`npc1`working 3#0#special#save"
+set "colmap_soft=4#0#special#transition`map2.txt`4`7 3#8#special#transition`map2.txt`4`0 4#8#special#transition`map2.txt`4`0"
 
 set "charstate=1"
 set "action_state=fade01"
@@ -210,8 +208,7 @@ for /L %%. in ( infinite ) do (
     ) else if "!action_state:~0,11!" equ "_transition" (
         for /F "tokens=1-3 delims=`" %%W in ("!action_state:*:=!") do (
             call :load_map "data\maps\%%W"
-            %@log% Setting Position to ^(%%X,%%Y^)
-            set /a "viewport_x=%%X * 3, hRes=sWidth * 3, viewport_y_0=%%Y, viewport_y_1=%%Y + sHeight"
+            if "%%X" neq "" set /a "viewport_x=%%X * 3, hRes=sWidth * 3, viewport_y_0=%%Y, viewport_y_1=%%Y + sHeight"
         )
         set "action_state=fade01"
         set "action_state_next=_transition_end"
@@ -249,33 +246,61 @@ for /L %%. in ( infinite ) do (
             for %%a in ( FF !colmap_hard! ) do (
                 if "!col_check!" equ "%%a" set "move="
             )
-            if defined move (
-                set "move=1"
-                %= soft collision =%
-                %= TODO better approach =%
-                set /a "_viewport_x=viewport_x, _viewport_y_1=viewport_y_1, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0, viewport_y_1=_viewport_y_1"
-                for %%a in ( !colmap_soft! ) do (
-                    for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
-                        if "%%b#%%c"=="!x_pos!#!y_pos!" (
-                            if "%%d"=="special" (
-                                set "args=%%e"
-                                set "args=!args:*`=!"
-                                for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
-                                if "!func!"=="transition" (
-                                    set "action_state=transition:!args!"
-                                    %@log% Passed to transition: "!args!"
-                                )
-                            ) else (
-                                set "args=%%e"
-                                call :%%d !args:`= !
+            %= soft collision =%
+            %= TODO better approach using string replacement =%
+            set /a "_viewport_x=viewport_x, _viewport_y_1=viewport_y_1, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0, viewport_y_1=_viewport_y_1"
+            set "viewport_y="
+            for %%a in ( !colmap_soft! ) do (
+                for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
+                    if "%%b#%%c"=="!x_pos!#!y_pos!" (
+                        if "%%d"=="special" (
+                            set "args=%%e"
+                            set "args=!args:*`=!"
+                            for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
+                            if "!func!"=="transition" (
+                                set "action_state=transition:!args!"
                             )
+                        ) else (
+                            set "args=%%e"
+                            call :%%d !args:`= !
                         )
                     )
                 )
-                if defined move set /a "!viewShift!"
             )
-        ) else (
-            if defined action_menu set "action_state=menu"
+            if defined move set /a "!viewShift!"
+        ) else if defined action_confirm (
+            if !charstate! equ 4 (
+                set "viewShift=viewport_y_0-=1, viewport_y_1-=1"
+            ) else if !charstate! equ 1 (
+                set "viewShift=viewport_y_0+=1, viewport_y_1+=1"
+            ) else if !charstate! equ 6 (
+                set "viewShift=viewport_x-=3"
+            ) else if !charstate! equ 8 (
+                set "viewShift=viewport_x+=3"
+            )
+            set /a "_viewport_x=viewport_x, _viewport_y_1=viewport_y_1, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0, viewport_y_1=_viewport_y_1"
+            set "viewport_y="
+            for %%a in ( !interations! ) do (
+                for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
+                    if "%%b#%%c"=="!x_pos!#!y_pos!" (
+                        if "%%d"=="special" (
+                            set "args=%%e"
+                            set "args=!args:*`=!"
+                            for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
+                            if "!func!"=="dialog" (
+                                %@log% Entered dialog: "!args!"
+                            ) else if "!func!"=="save" (
+                                call :save_save "save\test.sav"
+                            )
+                        ) else (
+                            set "args=%%e"
+                            call :%%d !args:`= !
+                        )
+                    )
+                )
+            )
+        ) else if defined action_menu (
+            set "action_state=menu"
         )
     ) else if "!action_state!"=="menu" (
         if defined action_menu set "action_state=map"
@@ -310,20 +335,74 @@ set "__map=0123456789ABCDEF"
         )
     )
 )
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+for /F "tokens=1 delims==" %%v in ('set __') do set "%%va=asdasd"
+::"
 %@log% Loaded spriteset from "%~1"
 exit /B
 
 :load_keybinds  <keybindsfile>
-set "action_events= up down left right menu confirm cancel "
-set "keybind[up]=w"
-set "keybind[down]=s"
-set "keybind[left]=a"
-set "keybind[right]=d"
-set "keybind[confirm]=e"
-set "keybind[cancel]=q"
-set "keybind[menu]={Enter}"
-%@log% Loaded keybinds from "%~1":dummy
+if not exist "%~1" (
+    set "action_events= up down left right menu confirm cancel "
+    set "keybind[up]=w"
+    set "keybind[down]=s"
+    set "keybind[left]=a"
+    set "keybind[right]=d"
+    set "keybind[confirm]=e"
+    set "keybind[cancel]=q"
+    set "keybind[menu]={Enter}"
+    call :save_keybinds  "%~1"
+    %@log% Created default keybinds in "%~1"
+    exit /B
+)
+%@log% Trying to load from "%~1"
+set "action_events= "
+for /F "usebackq tokens=1,2 delims==" %%V in ("%~1") do (
+    set "keybind[%%V]=%%W"
+    set "action_events=!action_events!%%V "
+)
+%@log% Loaded keybinds from "%~1"
+exit /B
+
+:save_keybinds  <keybindsfile>
+>"%~1" (
+    for /F "tokens=1,2 delims==" %%V in ('set keybind[') do (
+        set "key=%%V"
+        set "value=%%W"
+        echo !key:~8,-1!=!value!
+    )
+)
+%@log% Saved keybinds to "%~1"
+exit /B
+
+:save_save  <savelocation:str>
+>"%~1" (
+    echo map=!map!
+    set viewport_
+    echo charstate=!charstate!
+    for /F "delims=" %%F in ('set _gamedata_') do (
+        set "value=%%F"
+        echo !value:~10!
+    )
+    %= TODO encode map, position and map states? =%
+)
+set "value="
+%@log% Saved state to "%~1"
+exit /B
+
+:load_save
+for /F "usebackq delims=" %%F in ("%~1") do (
+    set "value=%%F"
+    set "value=!value:*=!"
+    for /F "tokens=1 delims==" %%A in ("%%F") do set "key=%%A"
+    if "!key:~0,8!"=="viewport"(
+        set "key=!value!"
+    ) else if "!key!"=="map" (
+        call :load_map  "!value!"
+    ) else set "_gamedata_%%F"
+)
+set "key="
+set "value="
+%@log% Loaded save from "%~1"
 exit /B
 
 :load_fontset  <fontset>
@@ -378,11 +457,7 @@ set "__line=!__frame!`"
 for /L %%_ in ( 0 2 !__mapsize_x! ) do set "__line=!__line!FF`"
 set "__line=!__line!!__frame!"
 for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__line!"
-
-
-for /L %%_ in ( 0 1 !__count2! ) do %@log% map[%%_]: "!map[%%_]!"
-
-
+set "map=%~1"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
 %@log% Loaded map from "%~1"
 exit /B
