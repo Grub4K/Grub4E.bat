@@ -13,23 +13,27 @@
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 @echo off
 if "%~1"==":engine" goto :engine
+if "%~1"==":logging" goto :logging
 if "%~1"==":controller" goto :controller
 
 setlocal disableDelayedExpansion
 :getSession
+set "tempFileBase=%~dp0"
+:: REMOVE
 ::if defined temp (set "tempFileBase=%temp%\") else if defined tmp set "tempFileBase=%tmp%\"
-for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "tempFileBase=%%a"
-set "tempFileBase=%tempFileBase:.=%"
-set "tempFileBase=%tempFileBase:~0,-7%"
-set "tempFileBase=%~dp0sessions\%tempFileBase%\"
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "currDatetime=%%a"
+set "currDatetime=%currDatetime:.=%"
+set "currDatetime=%currDatetime:~0,-8%"
+set "tempFileBase=%tempFileBase%sessions\%currDatetime%\"
 set "keyFile=%tempFileBase%key.txt"
 set "cmdFile=%tempFileBase%cmd.txt"
+set "logFile=%tempFileBase%log.txt"
 set "gameLock=%tempFileBase%lock.txt"
-set "gameLog=%tempFileBase%gamelog.txt"
 set "signal=%tempFileBase%signal.txt"
 set "keyStream=9"
 set "cmdStream=8"
-set "lockStream=7"
+set "logStream=7"
+set "lockStream=6"
 if not exist "%tempFileBase%" md "%tempFileBase%"
 :: Lock this game session and launch.
 :: Loop back and try a new session if failure.
@@ -42,9 +46,10 @@ exit /b
 :: launch the game and the controller
 copy nul "%keyFile%" >nul
 copy nul "%cmdFile%" >nul
-copy nul "%gameLog%" >nul
+copy nul "%logFile%" >nul
+start "Logging Console" /MIN cmd /c ^""%~f0" :logging %logStream%^<"%logFile%" 2^>nul ^"
 start "" /b cmd /c ^""%~f0" :controller %keyStream%^>^>"%keyFile%" %cmdStream%^<"%cmdFile%" 2^>nul ^>nul^"
-cmd /c ^""%~f0" :engine 2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmdFile%" ^<nul^"
+cmd /c ^""%~f0" :engine 2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmdFile%" %logStream%^>^>"%logFile%" ^<nul^"
 <NUL set /P "=Press any button to quit..."
 :close
 2>nul (>>"%keyFile%" call ) || goto :close
@@ -57,20 +62,13 @@ call :init_delayed
 
 :: TODO have first loader
 title [%eID%] Loading... [ Keybinds ]
-call :load_keybinds  save\keybinds.txt
+call :load_keybinds  saves\keybinds.txt
 
 title [%eID%] Loading... [ Fonts    ]
 call :load_fontset  data\sprites\font.txt
 
 title [%eID%] Loading... [ Sprites  ]
-::TODO subroutine for this
-call :load_spriteset  data\sprites\charas.txt
-set /a "count=0"
-for %%a in ( 00 01 02 03 04 05 06 07 08 09 0A ) do (
-    call :texconvert_alpha %%a char_sprite[!count!]
-    set /a "count+=1"
-)
-
+call :load_character  data\sprites\charas.txt
 call :load_spriteset  data\sprites\spriteset.txt
 
 title [%eID%] Loading... [ Map      ]
@@ -97,8 +95,8 @@ if defined DEBUG (
 
 :: TODO special soft collision for arrow showing
 
-set "interations=3#0#special#dialog`npc1`working 3#0#special#save"
-set "colmap_soft=4#0#special#transition`map2.txt`4`7 3#8#special#transition`map2.txt`4`0 4#8#special#transition`map2.txt`4`0"
+set "interactions=3#0#special#dialog`npc1`working 3#0#special#save"
+set "colmap_soft= 4#0#special#transition`map2.txt`4`7 3#8#special#transition`map2.txt`4`0 4#8#special#transition`map2.txt`4`0 "
 
 set "charstate=1"
 set "action_state=fade01"
@@ -117,11 +115,10 @@ for /L %%. in ( infinite ) do (
         for %%b in ("!viewport_x!") do for %%c in ("!HRES!") do set "screen[!count!]=!map[%%a]:~%%~b,%%~c!"
         set /a "count+=1"
     )
-    :: TODO fix this to be dynamic
     for %%a in ( %sHeightIter% ) do (
         set "line[%%a]="
         for /F "tokens=1-16 delims=`" %%A in ("!screen[%%a]!") do (
-            for %%b in ( 0 16 32 48 64 80 96 112 128 144 160 176 192 208 224 240 ) do (
+            for %%b in ( %ssPosIter% ) do (
                 set "line[%%a]=!line[%%a]!!LF! !spriteset[%%A]:~%%b,16!!spriteset[%%B]:~%%b,16!!spriteset[%%C]:~%%b,16!!spriteset[%%D]:~%%b,16!!spriteset[%%E]:~%%b,16!!spriteset[%%F]:~%%b,16!!spriteset[%%G]:~%%b,16!"
             )
         )
@@ -136,8 +133,7 @@ for /L %%. in ( infinite ) do (
             set /a "fadeStateFrom=fadeOff+%%a, fadeStateTo=fadeMul*fadeOverCount+fadeAdd+%%a"
             for /F "tokens=1,2 delims=`" %%b in ("!fadeStateFrom!`!fadeStateTo!") do (
                 for /F "tokens=1,2 delims=`" %%d in ("!fadeLookup:~%%~b,1!`!fadeLookup:~%%~c,1!") do (
-                    %= TODO use variable for this =%
-                    for %%l in ( 0 1 2 3 4 5 6 ) do (
+                    for %%l in ( %sHeightIter% ) do (
                         set "line[%%l]=!line[%%l]:%%~d=%%~e!"
                     )
                 )
@@ -184,6 +180,7 @@ for /L %%. in ( infinite ) do (
         %= emergency quit button =%
         if "!key_list!" neq "!key_list:.=!" (
             %@sendCmd% quit
+            %@log% :END
             exit
         )
         if not defined halt_action_translation for %%a in ( %action_events% ) do (
@@ -247,22 +244,21 @@ for /L %%. in ( infinite ) do (
                 if "!col_check!" equ "%%a" set "move="
             )
             %= soft collision =%
-            %= TODO better approach using string replacement =%
             set /a "_viewport_x=viewport_x, _viewport_y_1=viewport_y_1, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0, viewport_y_1=_viewport_y_1"
             set "viewport_y="
-            for %%a in ( !colmap_soft! ) do (
-                for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
-                    if "%%b#%%c"=="!x_pos!#!y_pos!" (
-                        if "%%d"=="special" (
-                            set "args=%%e"
+            for /F "tokens=1,2 delims=#" %%x in ("!x_pos!#!y_pos!") do (
+                if "!colmap_soft: %%x#%%y#=!" neq "!colmap_soft!" (
+                    for /F "tokens=1,2 delims=# " %%a in ("!colmap_soft:* %%x#%%y#=!") do (
+                        if "%%a"=="special" (
+                            set "args=%%b"
                             set "args=!args:*`=!"
-                            for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
+                            for /F "tokens=1 delims=`" %%A in ("%%b") do set "func=%%A"
                             if "!func!"=="transition" (
                                 set "action_state=transition:!args!"
                             )
                         ) else (
-                            set "args=%%e"
-                            call :%%d !args:`= !
+                            set "args=%%b"
+                            call :%%a !args:`= !
                         )
                     )
                 )
@@ -280,7 +276,7 @@ for /L %%. in ( infinite ) do (
             )
             set /a "_viewport_x=viewport_x, _viewport_y_1=viewport_y_1, _viewport_y_0=viewport_y_0, !viewShift!, x_pos=viewport_x / 3, y_pos=viewport_y_0, viewport_x=_viewport_x, viewport_y_0=_viewport_y_0, viewport_y_1=_viewport_y_1"
             set "viewport_y="
-            for %%a in ( !interations! ) do (
+            for %%a in ( !interactions! ) do (
                 for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
                     if "%%b#%%c"=="!x_pos!#!y_pos!" (
                         if "%%d"=="special" (
@@ -288,9 +284,9 @@ for /L %%. in ( infinite ) do (
                             set "args=!args:*`=!"
                             for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
                             if "!func!"=="dialog" (
-                                %@log% Entered dialog: "!args!"
+                                %@log% INFO Entered dialog: "!args!"
                             ) else if "!func!"=="save" (
-                                call :save_save "save\test.sav"
+                                call :save_save "saves\test.sav"
                             )
                         ) else (
                             set "args=%%e"
@@ -312,8 +308,8 @@ for /L %%. in ( infinite ) do (
 :load_spriteset  <spritefile> <offset>
 :: loads a tilefile into the tilebuffer
 if not exist "%~f1" (
-    %@log% Error opening file "%~1"
-    exit /B
+    %@log% ERROR Error opening file "%~1"
+    exit /B 1
 )
 set "__map=0123456789ABCDEF"
  <"%~f1" (
@@ -336,8 +332,17 @@ set "__map=0123456789ABCDEF"
     )
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%va=asdasd"
-::"
-%@log% Loaded spriteset from "%~1"
+%@log% INFO Loaded spriteset from "%~1"
+exit /B 0
+
+:load_character  <spritefile>
+call :load_spriteset  "%~1" && (
+    set /a "count=0"
+    for %%a in ( 00 01 02 03 04 05 06 07 08 09 0A ) do (
+        call :texconvert_alpha %%a char_sprite[!count!]
+        set /a "count+=1"
+    )
+)
 exit /B
 
 :load_keybinds  <keybindsfile>
@@ -351,16 +356,16 @@ if not exist "%~1" (
     set "keybind[cancel]=q"
     set "keybind[menu]={Enter}"
     call :save_keybinds  "%~1"
-    %@log% Created default keybinds in "%~1"
+    %@log% WARNING File "%~1" does not exist, created defaults
     exit /B
 )
-%@log% Trying to load from "%~1"
+%@log% DEBUG Trying to load from "%~1"
 set "action_events= "
 for /F "usebackq tokens=1,2 delims==" %%V in ("%~1") do (
     set "keybind[%%V]=%%W"
     set "action_events=!action_events!%%V "
 )
-%@log% Loaded keybinds from "%~1"
+%@log% INFO Loaded keybinds from "%~1"
 exit /B
 
 :save_keybinds  <keybindsfile>
@@ -371,7 +376,7 @@ exit /B
         echo !key:~8,-1!=!value!
     )
 )
-%@log% Saved keybinds to "%~1"
+%@log% INFO Saved keybinds to "%~1"
 exit /B
 
 :save_save  <savelocation:str>
@@ -383,10 +388,9 @@ exit /B
         set "value=%%F"
         echo !value:~10!
     )
-    %= TODO encode map, position and map states? =%
 )
 set "value="
-%@log% Saved state to "%~1"
+%@log% INFO Saved state to "%~1"
 exit /B
 
 :load_save
@@ -402,12 +406,12 @@ for /F "usebackq delims=" %%F in ("%~1") do (
 )
 set "key="
 set "value="
-%@log% Loaded save from "%~1"
+%@log% INFO Loaded save from "%~1"
 exit /B
 
 :load_fontset  <fontset>
 if not exist "%~f1" (
-    %@log% Error opening file "%~1"
+    %@log% ERROR Error opening file "%~1"
     exit /B
 )
 <"%~1" (
@@ -425,12 +429,12 @@ if not exist "%~f1" (
     )
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
-%@log% Loaded fontset from "%~1"
+%@log% INFO Loaded fontset from "%~1"
 exit /B
 
 :load_map  <mapfile>
 if not exist "%~f1" (
-    %@log% Error opening file "%~1"
+    %@log% ERROR Error opening file "%~1"
     exit /B
 )
 <"%~f1" (
@@ -459,7 +463,7 @@ set "__line=!__line!!__frame!"
 for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__line!"
 set "map=%~1"
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
-%@log% Loaded map from "%~1"
+%@log% INFO Loaded map from "%~1"
 exit /B
 
 :texconvert_alpha  <spritePtr> <outputArray>
@@ -494,14 +498,41 @@ if defined %~2 (
     set "%~2=!%~2: =.!"
 )
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
-%@log% Converted 0x%~1 to %~2
+%@log% INFO Alpha-converted sprite 0x%~1 to %~2
 exit /B
 
 :init
+color F0
+:: default values
+for %%a in (
+    "gameTitle=Game"
+    "maxSimultKeys=10"
+    "fontHeight=5"
+    "fontWidth=3"
+    "tWidth=16"
+    "tHeight=16"
+    "sWidth=7"
+    "sHeight=7"
+) do (
+    for /F "tokens=1,2 delims==" %%b in ("%%~a") do (
+        if not defined %%b set "%%b=%%c"
+    )
+)
+
 set /a "dWidth=tWidth*sWidth+2, dHeight=tHeight*sHeight+2"
 mode %dWidth%,%dHeight%
+
+:: @log  loglevel message
+:: @log  :END
+:: @log  :setlevel level
+:::  sends commands to the logging module
+set "@log=>&%logStream% echo"
+
 set "eID=Grub4E"
-if defined DEBUG set "eID=%eID%:DEBUG"
+if defined DEBUG (
+    %@log% :setlevel DEBUG
+    set "eID=%eID%:DEBUG"
+)
 
 set "spriteset[FF]=                                                                                                                                                                                                                                                                "
 
@@ -513,7 +544,11 @@ set "fadeLookup=    ∞±€€€±∞ "
 
 set #charMap=#  20#!!21#^"^"22###23#$$24#%%%%25#^&^&26#''27#^(^(28#^)^)29#**2A#++2B#,,2C#--2D#..2E#//2F#0030#1131#2232#3333#4434#5535#6636#7737#8838#9939#::3A#;;3B#^<^<3C#==3D#^>^>3E#??3F#@@40#AA41#BB42#CC43#DD44#EE45#FF46#GG47#HH48#II49#JJ4A#KK4B#LL4C#MM4D#NN4E#OO4F#PP50#QQ51#RR52#SS53#TT54#UU55#VV56#WW57#XX58#YY59#ZZ5A#[[5B#\\5C#]]5D#^^^^5E#__5F#``60#aa61#bb62#cc63#dd64#ee65#ff66#gg67#hh68#ii69#jj6A#kk6B#ll6C#mm6D#nn6E#oo6F#pp70#qq71#rr72#ss73#tt74#uu75#vv76#ww77#xx78#yy79#zz7A#{{7B#^|^|7C#}}7D#~~7E
 
-set @log=^>^>"%gameLog%" echo !time::=-!:
+set "gameLoc=%~dp0"
+:: REMOVE
+::if defined appdata set "gameLoc=%AppData%\%gameTitle%\"
+set "saveLoc=%gameLoc%saves\"
+if not exist "%saveLoc%" md "%saveLoc%"
 
 :: This is a strange way to get seed, but probably good enough for now
 for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "random_x32=%%a"
@@ -625,19 +660,33 @@ for /F "tokens=1 delims=, " %%1 in ("!args!") do ( %\n%
 )) else set args=,
 
 :: clear screen by setting cursor to 0:0
-:: Can be switched out for `cls`
+:: Can be switched out for `cls` on older systems
 set "@cls=<NUL set /P =%ESC%[H"
 
 :: @sendCmd  command
 :::  sends a command to the controller
 set "@sendCmd=>&%cmdStream% echo"
 
-
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
-%@log% Finished normal setup
+%@log% INFO Finished normal setup
 exit /B
 
 :init_delayed
+set /a "tHeight-=1, tWidth-=1, sHeight-=1, sWidth-=1, tHeightIter=tWidthIter=0, sHeightIter=sWidthIter=0"
+for /L %%a in ( 1 1 %tHeight% ) do set "tHeightIter=!tHeightIter! %%a"
+for /L %%a in ( 1 1 %tWidth% ) do set "tWidthIter=!tWidthIter! %%a"
+for /L %%a in ( 1 1 %sHeight% ) do set "sHeightIter=!sHeightIter! %%a"
+for /L %%a in ( 1 1 %sWidth% ) do set "sWidthIter=!sWidthIter! %%a"
+set /a "tHeight+=1, tWidth+=1, sHeight+=1, sWidth+=1"
+
+set /a "ssPosIter=accum=0"
+for /L %%a in ( 2 1 %tHeight% ) do (
+    set /a "accum+=tWidth"
+    set "ssPosIter=!ssPosIter! !accum!"
+)
+%@log% DEBUG ssPosIter: !ssPosIter!
+set "accum="
+
 set "count=0"
 set "lineset="
 for %%a in ( A B C D E F G H I J K L M N O P Q R S T U V W X Y Z ) do (
@@ -653,8 +702,66 @@ for /L %%a in ( 0 1 !fontheight! ) do set "fontset[%%a]=!fontset[0]!"
 set "empty="
 
 for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
-%@log% Finished delayed setup
+%@log% INFO Finished delayed setup
 exit /B
+
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+:logging
+:: Reads logging input and pretty prints these.
+:: This routine respects the current loglevel and exists purely to not
+:: slow down the tight main routine.
+:: Accepted input is either ":END" ":setlevel <level>" or "<level> <message>"
+setlocal DisableDelayedExpansion
+:: define LF as a Line Feed (newline) character
+set ^"LF=^
+%= These lines are required =%
+^" do not remove
+:: Define line continuation
+set ^"\n=^^^%LF%%LF%^%LF%%LF%^^"
+:: Default loglevels
+set "loglevels= ERROR WARNING "
+:: TODO transition to use of %time% and %date%
+set @perform_log=(%\n%
+for /F "tokens=1 delims= " %%a in ("!message!") do (%\n%
+    if "!loglevels:%%a=!" neq "!loglevels!" (%\n%
+        set "level=%%a   "%\n%
+        set "message=!message:* =!"%\n%
+        for /F "tokens=2 delims==" %%T in ('wmic OS Get localdatetime /value') do set "t=%%T"%\n%
+        echo  !t:~0,4!-!t:~4,2!-!t:~6,2! !t:~8,2!:!t:~10,2!:!t:~12,2! ^^^| !level:~0,7! ^^^| !message!%\n%
+    )%\n%
+))
+setlocal EnableDelayedExpansion
+for /L %%. in () do (
+    set "message="
+    <&%logStream% set /p "message="
+
+    if defined message (
+        if "!message:~0,1!" equ ":" (
+            if "!message!"==":END" (
+                set "message=INFO Terminated logging module"
+                %@perform_log%
+                exit
+            ) else if "!message:~1,8!"=="setlevel" (
+                set "message=!message:* =!"
+                set "loglevels="
+                set "found="
+                for %%a in (
+                    "SILENT"
+                    "ERROR"
+                    "WARNING"
+                    "INFO"
+                    "DEBUG"
+                ) do (
+                    if not defined found set "loglevels=!loglevels!%%~a "
+                    if "%%~a"=="!message:* =!" set "found=1"
+                )
+                set "loglevels= !loglevels:* =!"
+                set "message=INFO Switched loglevel to !message:* =!"
+                %@perform_log%
+            )
+        ) else %@perform_log%
+    )
+)
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :controller

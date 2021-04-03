@@ -1,7 +1,8 @@
 @echo off
 setlocal
 set "DEBUG=1"
-color F0
-for /F "usebackq delims=" %%a in ("data\game.txt") do set "%%a"
+:: TODO implement this
+set "logging_window=1"
+set "gameTitle=Demo game"
 
 Grub4E.bat
