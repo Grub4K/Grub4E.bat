@@ -93,11 +93,6 @@ if defined DEBUG (
     set "keybind[transition]=x"
 )
 
-:: TODO special soft collision for arrow showing
-
-set "interactions=3#0#special#dialog`npc1`working 3#0#special#save"
-set "colmap_soft= 4#0#special#transition`map2.txt`4`7 3#8#special#transition`map2.txt`4`0 4#8#special#transition`map2.txt`4`0 "
-
 set "charstate=1"
 set "action_state=fade01"
 set "action_state_next=map"
@@ -249,6 +244,7 @@ for /L %%. in ( infinite ) do (
             for /F "tokens=1,2 delims=#" %%x in ("!x_pos!#!y_pos!") do (
                 if "!colmap_soft: %%x#%%y#=!" neq "!colmap_soft!" (
                     for /F "tokens=1,2 delims=# " %%a in ("!colmap_soft:* %%x#%%y#=!") do (
+                        %= TODO special soft collision for arrow showing =%
                         if "%%a"=="special" (
                             set "args=%%b"
                             set "args=!args:*`=!"
@@ -440,6 +436,9 @@ if not exist "%~f1" (
 <"%~f1" (
     set /p "colmap_hard="
     set "colmap_hard= !colmap_hard! "
+    set /p "colmap_soft="
+    set "colmap_soft= !colmap_soft! "
+    set /p "interactions="
     set /p "__mapsize="
     set "__frame=FF`FF`FF"
     for /f "tokens=1,2 delims= " %%a in ("!__mapsize!") do (

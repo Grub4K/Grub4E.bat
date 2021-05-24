@@ -1,4 +1,6 @@
 02 03 04
+4#0#special#transition`map.txt`4`7 3#8#special#transition`map.txt`4`0 4#8#special#transition`map.txt`4`0
+3#0#special#dialog`npc1`working
 9 8
 040404040704040404
 010601010106010601
