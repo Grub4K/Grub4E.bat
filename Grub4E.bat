@@ -107,7 +107,7 @@ for /L %%. in ( infinite ) do (
     %= DRAW THE SCREEN =%
     set "count=0"
     for /L %%a in ( !viewport_y_0! 1 !viewport_y_1! ) do (
-        for %%b in ("!viewport_x!") do for %%c in ("!HRES!") do set "screen[!count!]=!map[%%a]:~%%~b,%%~c!"
+        for %%b in ("!viewport_x!") do set "screen[!count!]=!map[%%a]:~%%~b,%HRES%!"
         set /a "count+=1"
     )
     for %%a in ( %sHeightIter% ) do (
@@ -327,7 +327,7 @@ set "__map=0123456789ABCDEF"
         )
     )
 )
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%va=asdasd"
+for /F "tokens=1 delims==" %%v in ('set __ 2^>NUL') do set "%%v="
 %@log% INFO Loaded spriteset from "%~1"
 exit /B 0
 
@@ -424,7 +424,7 @@ if not exist "%~f1" (
         )
     )
 )
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+for /F "tokens=1 delims==" %%v in ('set __ 2^>NUL') do set "%%v="
 %@log% INFO Loaded fontset from "%~1"
 exit /B
 
@@ -461,7 +461,7 @@ for /L %%_ in ( 0 2 !__mapsize_x! ) do set "__line=!__line!FF`"
 set "__line=!__line!!__frame!"
 for %%a in ( 0 1 2 !__mapsize_y! !__count1! !__count2! ) do set "map[%%a]=!__line!"
 set "map=%~1"
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+for /F "tokens=1 delims==" %%v in ('set __ 2^>NUL') do set "%%v="
 %@log% INFO Loaded map from "%~1"
 exit /B
 
@@ -496,7 +496,7 @@ if defined %~2 (
     set "%~2=!%~2:~0,-1!"
     set "%~2=!%~2: =.!"
 )
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+for /F "tokens=1 delims==" %%v in ('set __ 2^>NUL') do set "%%v="
 %@log% INFO Alpha-converted sprite 0x%~1 to %~2
 exit /B
 
@@ -666,7 +666,7 @@ set "@cls=<NUL set /P =%ESC%[H"
 :::  sends a command to the controller
 set "@sendCmd=>&%cmdStream% echo"
 
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+for /F "tokens=1 delims==" %%v in ('set __ 2^>NUL') do set "%%v="
 %@log% INFO Finished normal setup
 exit /B
 
@@ -700,7 +700,7 @@ for /L %%_ in ( 1 1 126 ) do set "fontset[0]=!fontset[0]!!empty!"
 for /L %%a in ( 0 1 !fontheight! ) do set "fontset[%%a]=!fontset[0]!"
 set "empty="
 
-for /F "tokens=1 delims==" %%v in ('set __') do set "%%v="
+for /F "tokens=1 delims==" %%v in ('set __ 2^>NUL') do set "%%v="
 %@log% INFO Finished delayed setup
 exit /B
 
@@ -765,21 +765,27 @@ for /L %%. in () do (
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :controller
 :: Detects keypresses and sends the information to the game via a key file.
-:: This routine incorrectly reports `!` as something else. Both <CR> and the
-:: Enter key are reported as {Enter}. An extra character is appended to the
-:: output to preserve any control chars when read by SET /P.
+:: Both <CR> and the Enter key are reported as {Enter}.
+:: The Tab char gets reported as {Tab}.
+:: An `.` is appended to preserve control chars when read by SET /P.
 setlocal enableDelayedExpansion
 for /f %%a in ('copy /Z "%~dpf0" nul') do set "CR=%%a"
+((for /L %%P in (1,1,70) do pause>nul)&set /p "TAB=")<"!COMSPEC!"
+set "TAB=!TAB:~0,1!"
+set "^^=^!."
 set "cmd=hold"
 set "inCmd="
 set "key="
 for /l %%. in () do (
     if "!cmd!" neq "hold" (
         for /f "delims=" %%A in ('xcopy /w "%~f0" "%~f0" 2^>nul') do (
-            if not defined key set "key=%%A"
+            if not defined key set "key=%%A^!"
         )
-        set "key=!key:~-1!"
+        if !key:~-1!==^^ (
+            set "key=^"
+        ) else set "key=!key:~-2,1!"
         if !key! equ !CR! set "key={Enter}"
+        if !key! equ !TAB! set "key={Tab}"
     )
     <&%cmdStream% set /p "inCmd="
     if defined inCmd (
