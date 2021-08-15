@@ -27,7 +27,7 @@ set "tempFileBase=%tempFileBase%sessions\%currDatetime%\"
 set "keyFile=%tempFileBase%key.txt"
 set "cmdFile=%tempFileBase%cmd.txt"
 set "logFile=%tempFileBase%log.txt"
-set "gameLock=%tempFileBase%lock.txt"
+set "lockFile=%tempFileBase%lock.txt"
 set "signal=%tempFileBase%signal.txt"
 set "keyStream=9"
 set "cmdStream=8"
@@ -37,7 +37,7 @@ if not exist "%tempFileBase%" md "%tempFileBase%"
 :: Lock this game session and launch.
 :: Loop back and try a new session if failure.
 :: Cleanup and exit when finished
-call :launch %lockStream%>"%gameLock%" || goto :getSession
+call :launch %lockStream%>"%lockFile%" || goto :getSession
 rd /s /q "%tempFileBase%"
 exit /b
 
@@ -46,26 +46,35 @@ exit /b
 copy nul "%keyFile%" >nul
 copy nul "%cmdFile%" >nul
 copy nul "%logFile%" >nul
+set "fail="
 :: TODO unify interface for controller and logging
 if defined loggingWindow start "Logging Console" cmd /c ^"Grub4E\logging.bat %logStream%^<"%logFile%" 2^>nul ^"
 start "" /b cmd /c ^"Grub4E\controller.bat %keyStream%^>^>"%keyFile%" %cmdStream%^<"%cmdFile%" 2^>nul ^>nul^"
 cmd /c ^"Grub4E\engine.bat 2^>NUL  %keyStream%^<"%keyFile%" %cmdStream%^>^>"%cmdFile%" %logStream%^>^>"%logFile%" ^<nul^"
+
 if errorlevel 1 (
     echo:
     if errorlevel 255 (
-        echo Engine has crashed
+        echo Engine has crashed on a syntax error
     ) else echo Engine did not shutdown correctly
-    echo Sending termination signals...
+    if defined loggingWindow echo Check the logging window
+    set "fail=1"
+) else if defined loggingWindow (
     >>"%logFile%" echo :END
-    >>"%cmdFile%" echo quit
 )
+
+>>"%cmdFile%" echo quit
 <nul set /P "=Press any button to quit..."
 ping -n 1 localhost >NUL
-2>nul (>>"%keyFile%" call ) && (
-    >nul pause
-    exit /B
-)
+2>nul (>>"%keyFile%" call ) && >nul pause
 :close
-ping -n 1 localhost >NUL
-2>nul (>>"%keyFile%" call ) || goto :close
+2>nul (>>"%keyFile%" call ) || (
+    ping -n 1 localhost >NUL
+    goto :close
+)
+
+if defined fail if defined loggingWindow (
+    >>"%logFile%" echo :END
+    ping -n 2 localhost >NUL
+)
 exit /b 0

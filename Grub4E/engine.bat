@@ -154,11 +154,7 @@ for /L %%. in ( infinite ) do (
     %= translate keypresses into action events =%
     if defined keyList (
         %= emergency quit button =%
-        if "!keyList!" neq "!keyList:.=!" (
-            %@sendCmd% quit
-            %@log% :END
-            exit 0
-        )
+        if "!keyList!" neq "!keyList:.=!" exit 0
         %= TEMP small scroll =%
         if "!keyList!" neq "!keyList:j=!" set /a "shiftX-=1"
         if "!keyList!" neq "!keyList:l=!" set /a "shiftX+=1"

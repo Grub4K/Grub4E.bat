@@ -47,8 +47,6 @@ for /L %%. in () do (
             if "!message!"==":END" (
                 set "message=INFO Terminated logging module"
                 %@performLog%
-                <nul set /P "=Press any button to quit..."
-                >nul pause
                 exit
             ) else if "!message:~1,8!"=="setlevel" (
                 set "message=!message:* =!"
