@@ -187,7 +187,7 @@ for /L %%. in ( infinite ) do (
     ) else if "!actionState:~0,11!" equ "_transition" (
         for /F "tokens=1-3 delims=`" %%W in ("!actionState:*:=!") do (
             call :loadMap "data\maps\%%W"
-            if "%%X" neq "" set /a "viewportX=%%X * 3, hRes=sWidth * 3, viewportY0=%%Y, viewportY1=%%Y + sHeight"
+            if "%%X" neq "" set /a "viewportX=%%X * 3, viewportY0=%%Y-1, viewportY1=%%Y-1 + sHeight"
         )
         set "actionState=fade01"
         set "actionStateNext=_transitionEnd"
