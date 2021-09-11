@@ -13,7 +13,6 @@
 ::
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 :init
-color F0
 :: default values
 for %%a in (
     "gameTitle=Game"
@@ -32,6 +31,8 @@ for %%a in (
 
 set /a "dWidth=tWidth*sWidth+2, dHeight=tHeight*sHeight+2"
 mode %dWidth%,%dHeight%
+
+set /a "hRes=(sWidth+2) * 3"
 
 :: @log  loglevel message
 :: @log  :END
@@ -75,8 +76,8 @@ if defined VT100 (
     )
 )
 
-:: define LF as a Line Feed (newline) character
-set ^"LF=^
+:: define \n as a <LF> character
+set ^"\n=^
 %= These lines are required =%
 ^" do not remove
 

@@ -28,13 +28,6 @@ set "spriteset[FF]="
 for /L %%. in ( 1 1 %tWidth% ) do set "__empty=!__empty! "
 for /L %%. in ( 1 1 %tHeight% ) do set "spriteset[FF]=!spriteset[FF]!!__empty!"
 
-set "__count=0"
-set "lineset="
-for %%a in ( A B C D E F G H I J K L M N O P Q R S T U V W X Y Z ) do (
-    set /a "__count+=1"
-    if !__count! leq %sWidth% set "lineset=!lineset!^!spriteset[%%%%a]_%%s^!"
-)
-
 set "__empty="
 set "fontset[0]="
 for /L %%_ in ( 1 1 !fontwidth! ) do set "empty=!empty! "
@@ -55,7 +48,7 @@ for %%a in (!__tempLookupIter!) do (
 set "#clipLine="
 for %%a in (%tHeightIter%) do (
     set /a "__start=((%sWidth%+2) * %%a + 1) * %tWidth%, __end=(%sWidth%*%tWidth%)"
-    set "#clipLine=!#clipLine!^!line[%%l]:~!__start!,!__end!^!^!LF^!"
+    set "#clipLine=!#clipLine!^!line[%%l]:~!__start!,!__end!^!^!\n^!"
 )
 set "#clipLine=!#clipLine:~0,-4!"
 
