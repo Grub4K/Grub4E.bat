@@ -32,30 +32,42 @@ call :loadSpriteset  data\sprites\spriteset.txt
 %@setTitle% Loading... [ Map      ]
 call :loadMap data\maps\map.txt
 
-set /a "viewportX=2, viewportY=2"
-set /a "viewportX=(viewportX - 1) * 3, hRes=(sWidth+2) * 3, viewportY0=viewportY - 1, viewportY1=viewportY0 + sHeight + 2"
+set /a "posX=2, posY=2"
+set /a "posX*=tWidth, posY*=tHeight"
 
 %@setTitle% !gameTitle!
 if defined DEBUG (
-    set "debugOverlay[#]=1"
+    %@log% setlevel DEBUG
+    set "debugOverlay[#]=0"
     set "debugOverlayList="
     %@addDebugData% tDiff
     %@addDebugData% fps
     %@addDebugData% actionState
+    %@addDebugData% posX
+    %@addDebugData% posY
     %@addDebugData% shiftX
     %@addDebugData% shiftY
-    %@addDebugData% viewportX
-    %@addDebugData% viewportY0
-    set "debugOverlay[0]=ษออออออออออออออออออออป"
+    %@addDebugData% coroutines
+
+    set "debugOverlay[0]=ษออออออออออ DEBUG OVERLAY อออออออออออออป"
     set "keybind[debug]=#"
-    set "actionEvents=!actionEvents! transition debug "
+    set "actionEvents=!actionEvents! debug "
     set "debugOverlay=1"
-    set "keybind[transition]=x"
 )
 
-set "charstate=1"
+set "charState=1"
+set "bgStale=1"
 set "actionState=fade01"
 set "actionStateNext=map"
+set "coroutines= "
+
+:: TODO for absolute pixel position
+::
+:: some way to do collision without iewport and screen vals
+:: maybe subpixel position for physics calculation (clip)
+:: event and function queue (rework transition framework to use that)
+
+%@addCoroutine% shiftRight
 
 %@sendCmd% go
 for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do set /a "t1=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100"
@@ -65,22 +77,35 @@ for /L %%. in ( infinite ) do (
         set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
     )
     %= DRAW THE SCREEN =%
-    set "count=-1"
-    for %%b in ("!viewportX!") do (
-        for /L %%a in ( !viewportY0! 1 !viewportY1! ) do (
-            set "screen[!count!]=!map[%%a]:~%%~b,%hRes%!"
-            set /a "count+=1"
-        )
-    )
-    for %%a in ( -1 %sHeightIter% %sHeight% ) do (
-        set "line[%%a]="
-        for /F "tokens=1-26 delims=`" %%A in ("!screen[%%a]!") do (
-            for %%b in ( %ssPosIter% ) do (
-                set "line[%%a]=!line[%%a]!%#lineGenerator%"
+    if defined bgStale (
+        %= Recalculate the viewport =%
+        set /a "viewportX=((posX/%tWidth%) - 1) * 3, viewportY0=(posY/%tHeight%) - 1, viewportY1=viewportY0 + sHeight + 2"
+
+        set "count=-1"
+        for %%b in ("!viewportX!") do (
+            for /L %%a in ( !viewportY0! 1 !viewportY1! ) do (
+                set "screen[!count!]=!map[%%a]:~%%~b,%hRes%!"
+                set /a "count+=1"
             )
+        )
+        for %%a in ( -1 %sHeightIter% %sHeight% ) do (
+            set "lineBg[%%a]="
+            for /F "tokens=1-26 delims=`" %%A in ("!screen[%%a]!") do (
+                for %%b in ( %ssPosIter% ) do (
+                    set "lineBg[%%a]=!lineBg[%%a]!%#lineGenerator%"
+                )
+            )
+            set "line[%%a]=!lineBg[%%a]!"
+        )
+        set "bgStale="
+    ) else (
+        for %%l in ( -1 %sHeightIter% %sHeight% ) do (
+            set "line[%%l]=!lineBg[%%l]!"
         )
     )
     %=TODO implement dynamic sprite drawing =%
+
+    set /a "shiftX=posX %% tWidth, shiftY=posY %% tHeight"
 
     %= SCROLLING VIEWPORT SHIFT =%
     if not "!shiftX!"=="0" for %%x in ("!shiftX!") do (
@@ -88,7 +113,6 @@ for /L %%. in ( infinite ) do (
             set "line[%%a]=!line[%%a]:~%%~x!!line[%%a]:~0,%%~x!"
         )
     )
-    %= WARNING - shiftY gives undefined behavior for negative values =%
     if not "!shiftY!"=="0" (
         set /a "__count=shiftY * ((%sWidth%+2)*%tWidth%)"
         for %%y in ("!__count!") do (
@@ -103,6 +127,7 @@ for /L %%. in ( infinite ) do (
     %@drawOverAlpha% 48 48 charSprite[!charstate!]
 
     %= EXECUTE FADING COMMAND =%
+    %= TODO rework this to use event system =%
     if "!actionState:~0,4!" equ "fade" (
         if !fadeOverTime! equ 0 set /a "fadeOverCount=0, fadeOverTime=0, fadeOff=3+5*!actionState:~4,1!, fadeMul=(!actionState:~5,1!*2-1), fadeAdd=fadeOff+((~!actionState:~5,1!+1)*3)"
         for /L %%a in ( 0 1 3 ) do (
@@ -122,16 +147,21 @@ for /L %%. in ( infinite ) do (
         )
     )
 
+    for %%a in ( !coroutines! ) do (
+        call :%%a
+    )
+
     %= DEBUG OVERLAY =%
     if "!debugOverlay!"== "1" (
-        set "debugCount=2"
+        set "debugCount=1"
         for %%a in ( !debugOverlayList! ) do (
             set "__debugTemp=                    !%%a!"
-            set "debugOverlay[!debugCount!]=บ!__debugTemp:~-20!บ"
+            set "__debugName=%%a              "
+            set "debugOverlay[!debugCount!]=บ !__debugName:~0,14! ณ!__debugTemp:~-20! บ"
             set /a "debugCount+=2"
         )
-        set "debugOverlay[!debugOverlay[#]!]=ศออออออออออออออออออออผ"
-        %@drawOver% 2 2 22 !debugOverlay[#]! debugOverlay
+        set "debugOverlay[!debugOverlay[#]!]=ศออออออออออออออออออออออออออออออออออออออผ"
+        %@drawOver% 2 2 40 !debugOverlay[#]! debugOverlay
         set "__debugTemp="
     )
 
@@ -150,19 +180,17 @@ for /L %%. in ( infinite ) do (
     )
     %= Clear action events =%
     %= TODO  rework action variable to be array not list =%
+    %= TODO  rework to be instant lookup =%
     for %%a in ( %actionEvents% ) do set "action[%%a]="
     %= translate keypresses into action events =%
     if defined keyList (
-        %= emergency quit button =%
+        %= TEMP emergency quit button =%
         if "!keyList!" neq "!keyList:.=!" exit 0
-        %= TEMP small scroll =%
-        if "!keyList!" neq "!keyList:j=!" set /a "shiftX-=1"
-        if "!keyList!" neq "!keyList:l=!" set /a "shiftX+=1"
-        if "!keyList!" neq "!keyList:k=!" set /a "shiftY-=1"
-        if "!keyList!" neq "!keyList:i=!" set /a "shiftY+=1"
-        if not defined haltActionTranslation for %%a in ( %actionEvents% ) do (
-            for %%b in ("!keybind[%%a]!") do (
-                if "!keyList!" neq "!keyList:%%~b=!" set "action[%%a]=1"
+        if not defined haltActionTranslation (
+            for %%a in ( %actionEvents% ) do (
+                for %%b in ("!keybind[%%a]!") do (
+                    if "!keyList!" neq "!keyList:%%~b=!" set "action[%%a]=1"
+                )
             )
         )
     )
@@ -194,94 +222,34 @@ for /L %%. in ( infinite ) do (
             set "actionStateNext=%%b"
         )
     )
-    %= TODO fix issues here =%
     %= EXECUTE GAME LOGIC =%
     if "!actionState!"=="map" (
         set "colCheck="
         if defined action[up] (
             if !charstate! equ 4 (
-                set "colCheck=!screen[2]:~12,2!"
-                set "viewShift=viewportY0-=1, viewportY1-=1"
+                set /a "posY-=%tWidth%"
+                set "bgStale=1"
             ) else set "charstate=4"
         )
         if defined action[down] (
             if !charstate! equ 1 (
-                set "colCheck=!screen[4]:~12,2!"
-                set "viewShift=viewportY0+=1, viewportY1+=1"
+                set /a "posY+=%tWidth%"
+                set "bgStale=1"
             ) else set "charstate=1"
         )
         if defined action[left] (
             if !charstate! equ 6 (
-                set "colCheck=!screen[3]:~9,2!"
-                set "viewShift=viewportX-=3"
+                set /a "posX-=%tWidth%"
+                set "bgStale=1"
             ) else set "charstate=6"
         )
         if defined action[right] (
             if !charstate! equ 8 (
-                set "colCheck=!screen[3]:~15,2!"
-                set "viewShift=viewportX+=3"
+                set /a "posX+=%tWidth%"
+                set "bgStale=1"
             ) else set "charstate=8"
         )
-        if defined colCheck (
-            %= hard collision =%
-            set "move=1"
-            for %%a in ( FF !colmapHard! ) do (
-                if "!colCheck!" equ "%%a" set "move="
-            )
-            %= soft collision =%
-            set /a "_viewportX=viewportX, _viewportY1=viewportY1, _viewportY0=viewportY0, !viewShift!, xPos=viewportX / 3 + 1, yPos=viewportY0+1, viewportX=_viewportX, viewportY0=_viewportY0, viewportY1=_viewportY1"
-            set "viewportY="
-            for /F "tokens=1,2 delims=`" %%x in ("!xPos!`!yPos!") do (
-                if "!colmapSoft: %%x#%%y#=!" neq "!colmapSoft!" (
-                    for /F "tokens=1,2 delims=# " %%a in ("!colmapSoft:* %%x#%%y#=!") do (
-                        %= TODO special soft collision for arrow showing =%
-                        if "%%a"=="special" (
-                            set "args=%%b"
-                            set "args=!args:*`=!"
-                            for /F "tokens=1 delims=`" %%A in ("%%b") do set "func=%%A"
-                            if "!func!"=="transition" (
-                                set "actionState=transition:!args!"
-                            )
-                        ) else (
-                            set "args=%%b"
-                            call :%%a !args:`= !
-                        )
-                    )
-                )
-            )
-            if defined move set /a "!viewShift!"
-        ) else if defined action[confirm] (
-            if !charstate! equ 4 (
-                set "viewShift=viewportY0-=1, viewportY1-=1"
-            ) else if !charstate! equ 1 (
-                set "viewShift=viewportY0+=1, viewportY1+=1"
-            ) else if !charstate! equ 6 (
-                set "viewShift=viewportX-=3"
-            ) else if !charstate! equ 8 (
-                set "viewShift=viewportX+=3"
-            )
-            set /a "_viewportX=viewportX, _viewportY1=viewportY1, _viewportY0=viewportY0, !viewShift!, xPos=viewportX / 3 + 1, yPos=viewportY0+1, viewportX=_viewportX, viewportY0=_viewportY0, viewportY1=_viewportY1"
-            set "viewportY="
-            for %%a in ( !interactions! ) do (
-                for /F "tokens=1-4 delims=#" %%b in ("%%a") do (
-                    if "%%b#%%c"=="!xPos!#!yPos!" (
-                        if "%%d"=="special" (
-                            set "args=%%e"
-                            set "args=!args:*`=!"
-                            for /F "tokens=1 delims=`" %%A in ("%%e") do set "func=%%A"
-                            if "!func!"=="dialog" (
-                                %@log% INFO Entered dialog: "!args!"
-                            ) else if "!func!"=="save" (
-                                call :saveSave "saves\test.sav"
-                            )
-                        ) else (
-                            set "args=%%e"
-                            call :%%d !args:`= !
-                        )
-                    )
-                )
-            )
-        ) else if defined action[menu] (
+        if defined action[menu] (
             set "actionState=menu"
         )
     ) else if "!actionState!"=="menu" (
@@ -290,7 +258,13 @@ for /L %%. in ( infinite ) do (
     )
 )
 
+:shiftRight
+set /a "posX+=1, remainder=posX %% 16"
+if !remainder! equ 0 set "bgStale=1"
+exit /B
+
 :: TODO convert to macro
+:: TODO convert to use just normal numbers
 :loadSpriteset  <sprite:file> <offset:int>
 :: loads a tilefile into the tilebuffer
 if not exist "%~f1" (

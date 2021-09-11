@@ -60,8 +60,7 @@ set "__s="
 
 :addDebugData  <data:var>
 ::: adds a entry to the debug overlay for display
-set "debugTemp= %%1                   "
-set "debugOverlay[!debugOverlay[#]!]=�!debugTemp:~0,20!�"
+set "debugOverlay[!debugOverLay[#]!]=봬컴컴컴컴컴컴컴컵컴컴컴컴컴컴컴컴컴컴캤"
 set /a "debugOverlay[#]+=2"
 set "debugOverlayList=!debugOverlayList! %%1"
 
@@ -93,3 +92,9 @@ for /L %%a in ( 0 1 !len! ) do (
 for /L %%a in ( 0 1 !fontheight! ) do (
     set "%%~2[%%a]=!%%~2[%%a]:~0,-1!"
 )
+
+:addCoroutine  <coroutine>
+set "coroutines=!coroutines!%%~1 "
+
+:removeCoroutine  <coroutine>
+set "coroutines=!coroutines: %%~1 = !"
