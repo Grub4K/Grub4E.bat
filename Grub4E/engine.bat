@@ -72,10 +72,6 @@ set "coroutines= "
 %@sendCmd% go
 for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do set /a "t1=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100"
 for /L %%. in ( infinite ) do (
-    %= CALCULATE TIME DIFFERENCE AND FPS =%
-    for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
-        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
-    )
     %= DRAW THE SCREEN =%
     if defined bgStale (
         %= Recalculate the viewport =%
@@ -169,6 +165,11 @@ for /L %%. in ( infinite ) do (
     %@cls%
     for %%l in ( %sHeightIter% ) do (
         echo(%#clipLine%
+    )
+
+    %= CALCULATE TIME DIFFERENCE AND FPS =%
+    for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
+        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
     )
 
     %= PROCESS INPUT =%
