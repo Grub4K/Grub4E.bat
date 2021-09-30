@@ -18,26 +18,32 @@
 ::
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 @echo off
-setlocal DisableDelayedExpansion
-:: define LF as a Line Feed (newline) character
-set ^"LF=^
-%= These lines are required =%
-^" do not remove
-:: Define line continuation
-set ^"\n=^^^%LF%%LF%^%LF%%LF%^^"
+setlocal disableDelayedExpansion
 :: Default loglevels
 set "logLevels= ERROR WARNING "
+
+call Grub4E\lib\libdatef.bat
+if errorlevel 2 (
+    set "message=WARNING Could not determine date format, falling back to wmic"
+) else if errorlevel 1 (
+    set "message=WARNING Date format ambiguous, added a one day safety fallback"
+) else set "message="
+
+set "timeFormat=%datef.Year%-%datef.Month%-%datef.Day% %datef.Hour%:%datef.Minute%:%datef.Second%,%datef.CentiSecond%"
 :: TODO transition to use of %time% and %date%
-set @performLog=(%\n%
-for /F "tokens=1 delims= " %%a in ("!message!") do (%\n%
-    if "!logLevels:%%a=!" neq "!logLevels!" (%\n%
-        set "level=%%a   "%\n%
-        set "message=!message:* =!"%\n%
-        for /F "tokens=2 delims==" %%T in ('wmic OS Get localdatetime /value') do set "t=%%T"%\n%
-        echo  !t:~0,4!-!t:~4,2!-!t:~6,2! !t:~8,2!:!t:~10,2!:!t:~12,2! ^^^| !level:~0,7! ^^^| !message!%\n%
-    )%\n%
-))
+set @performLog=^
+for /F "tokens=1 delims= " %%a in ("!message!") do ^
+    if "!logLevels:%%a=!" neq "!logLevels!" (^
+        set "level=%%a   " ^&^
+        set "message=!message:* =!" ^&^
+        %@datef.parseDateTime% (echo  %timeFormat% ^^^| !level:~0,7! ^^^| !message!)^
+    )
+
 setlocal EnableDelayedExpansion
+if defined message (
+    %@performLog%
+)
+
 for /L %%. in () do (
     set "message="
     <&%logStream% set /p "message="

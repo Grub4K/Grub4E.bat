@@ -20,7 +20,10 @@
 @echo off
 setlocal enableDelayedExpansion
 for /f %%a in ('copy /Z "%~dpf0" nul') do set "\r=%%a"
-((for /L %%P in (1,1,70) do pause>nul)&set /p "\t=")<"!COMSPEC!"
+<"!COMSPEC!" (
+    for /L %%P in (1,1,70) do pause>nul
+    set /p "\t="
+)
 set "\t=!\t:~0,1!"
 set "^^=^!."
 set "cmd=hold"
