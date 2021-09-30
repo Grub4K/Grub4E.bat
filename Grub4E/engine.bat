@@ -142,11 +142,6 @@ for /L %%. in ( infinite ) do (
         echo(%#clipLine%
     )
 
-    %= CALCULATE TIME DIFFERENCE AND FPS =%
-    for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
-        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
-    )
-
     %= PROCESS INPUT =%
     set "keyList="
     for /L %%: in ( 1 1 %MAXSIMULTKEYS% ) do (
