@@ -14,12 +14,12 @@
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 @echo off
 
-set /a "tHeight-=1, tWidth-=1, sHeight-=1, sWidth-=1, tHeightIter=tWidthIter=0, sHeightIter=sWidthIter=0, __tWidthXtHeight=tWidth*(tHeight+1), ssPosIter=0"
+set /a "tHeight-=1, tWidth-=1, sHeight-=1, sWidth-=1, tHeightIter=tWidthIter=0, sHeightIter=sWidthIter=0"
 for /L %%a in ( 1 1 %tHeight% ) do set "tHeightIter=!tHeightIter! %%a"
 for /L %%a in ( 1 1 %tWidth% ) do set "tWidthIter=!tWidthIter! %%a"
 for /L %%a in ( 1 1 %sHeight% ) do set "sHeightIter=!sHeightIter! %%a"
 for /L %%a in ( 1 1 %sWidth% ) do set "sWidthIter=!sWidthIter! %%a"
-set /a "tHeight+=1, tWidth+=1, sHeight+=1, sWidth+=1"
+set /a "tHeight+=1, tWidth+=1, sHeight+=1, sWidth+=1, __tWidthXtHeight=tWidth*tHeight, ssPosIter=0"
 
 for /L %%a in ( %tWidth% %tWidth% %__tWidthXtHeight% ) do set "ssPosIter=!ssPosIter! %%a"
 

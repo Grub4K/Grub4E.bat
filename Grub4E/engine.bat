@@ -18,6 +18,13 @@ setlocal enableDelayedExpansion
 call Grub4E\lib\libmacro.bat "Grub4E\macroFunctions.bat"
 call Grub4E\initDelayed.bat
 
+:: TEMP variable setup
+set "coroutines= "
+set "charState=1"
+set "bgStale=1"
+set "actionState=fade01"
+set "actionStateNext=map"
+
 :: TODO have first loader
 %@setTitle% Loading... [ Keybinds ]
 call :loadKeybinds  saves\keybinds.txt
@@ -54,12 +61,6 @@ if defined DEBUG (
     set "actionEvents=!actionEvents! debug "
     set "debugOverlay=1"
 )
-
-set "charState=1"
-set "bgStale=1"
-set "actionState=fade01"
-set "actionStateNext=map"
-set "coroutines= "
 
 :: TODO for absolute pixel position
 ::
@@ -180,9 +181,8 @@ for /L %%. in ( infinite ) do (
         if defined inKey set "keyList=!keyList!!inKey:~0,-1!"
     )
     %= Clear action events =%
-    %= TODO  rework action variable to be array not list =%
     %= TODO  rework to be instant lookup =%
-    for %%a in ( %actionEvents% ) do set "action[%%a]="
+    set "actions= "
     %= translate keypresses into action events =%
     if defined keyList (
         %= TEMP emergency quit button =%
@@ -190,7 +190,9 @@ for /L %%. in ( infinite ) do (
         if not defined haltActionTranslation (
             for %%a in ( %actionEvents% ) do (
                 for %%b in ("!keybind[%%a]!") do (
-                    if "!keyList!" neq "!keyList:%%~b=!" set "action[%%a]=1"
+                    if "!keyList!" neq "!keyList:%%~b=!" (
+                        set "actions=!actions!%%a "
+                    )
                 )
             )
         )
@@ -226,36 +228,36 @@ for /L %%. in ( infinite ) do (
     %= EXECUTE GAME LOGIC =%
     if "!actionState!"=="map" (
         set "colCheck="
-        if defined action[up] (
+        if %#hasAction:?=up% (
             if !charstate! equ 4 (
                 set /a "posY-=%tWidth%"
                 set "bgStale=1"
             ) else set "charstate=4"
         )
-        if defined action[down] (
+        if %#hasAction:?=down% (
             if !charstate! equ 1 (
                 set /a "posY+=%tWidth%"
                 set "bgStale=1"
             ) else set "charstate=1"
         )
-        if defined action[left] (
+        if %#hasAction:?=left% (
             if !charstate! equ 6 (
                 set /a "posX-=%tWidth%"
                 set "bgStale=1"
             ) else set "charstate=6"
         )
-        if defined action[right] (
+        if %#hasAction:?=right% (
             if !charstate! equ 8 (
                 set /a "posX+=%tWidth%"
                 set "bgStale=1"
             ) else set "charstate=8"
         )
-        if defined action[menu] (
+        if %#hasAction:?=menu% (
             set "actionState=menu"
         )
     ) else if "!actionState!"=="menu" (
-        if defined action[menu] set "actionState=map"
-        if defined action[cancel] set "actionState=map"
+        if %#hasAction:?=menu% set "actionState=map"
+        if %#hasAction:?=cancel% set "actionState=map"
     )
 )
 
