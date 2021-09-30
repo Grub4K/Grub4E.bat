@@ -29,7 +29,7 @@ if errorlevel 2 (
     set "message=WARNING Date format ambiguous, added a one day safety fallback"
 ) else set "message="
 
-set "timeFormat=%datef.Year%-%datef.Month%-%datef.Day% %datef.Hour%:%datef.Minute%:%datef.Second%,%datef.CentiSecond%"
+set "timeFormat=%datef.Year%-%datef.Month%-%datef.Day% %datef.Hours%:%datef.Minutes%:%datef.Seconds%,%datef.CentiSeconds%"
 :: TODO transition to use of %time% and %date%
 set @performLog=^
 for /F "tokens=1 delims= " %%a in ("!message!") do ^

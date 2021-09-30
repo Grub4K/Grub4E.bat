@@ -93,8 +93,8 @@ for /L %%a in ( 0 1 !fontheight! ) do (
     set "%%~2[%%a]=!%%~2[%%a]:~0,-1!"
 )
 
-:addCoroutine  <coroutine>
-set "coroutines=!coroutines!%%~1 "
+:addCoroutine  <coroutine> [argument1] [argument2] [argument3] [argument4]
+set "coroutines=!coroutines!coro_%%~1`%%~2`%%~3`%%~4`%%~5 "
 
-:removeCoroutine  <coroutine>
-set "coroutines=!coroutines: %%~1 = !"
+:removeCoroutine  <coroutine> [argument1] [argument2] [argument3] [argument4]
+set "coroutines=!coroutines: coro_%%~1`%%~2`%%~3`%%~4`%%~5 = !"

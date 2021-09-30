@@ -29,7 +29,7 @@ for %%a in (
     )
 )
 
-set /a "dWidth=tWidth*sWidth+2, dHeight=tHeight*sHeight+2"
+set /a "dWidth=tWidth*sWidth, dHeight=tHeight*sHeight+1"
 mode %dWidth%,%dHeight%
 
 set /a "hRes=(sWidth+2) * 3"
@@ -80,6 +80,9 @@ if defined VT100 (
 set ^"\n=^
 %= These lines are required =%
 ^" do not remove
+
+set #hasAction=not "!actions!"=="!actions: ? = !"
+set "actions= "
 
 set "haltActionTranslation="
 
