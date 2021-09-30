@@ -22,8 +22,7 @@ call Grub4E\initDelayed.bat
 set "coroutines= "
 set "charState=1"
 set "bgStale=1"
-set "actionState=fade01"
-set "actionStateNext=map"
+set "actionState=map"
 
 :: TODO have first loader
 %@setTitle% Loading... [ Keybinds ]
@@ -55,11 +54,14 @@ if defined DEBUG (
     %@addDebugData% shiftX
     %@addDebugData% shiftY
     %@addDebugData% coroutines
+    %@addDebugData% fadeOverCount
 
     set "debugOverlay[0]=ษออออออออออ DEBUG OVERLAY อออออออออออออป"
     set "keybind[debug]=#"
     set "actionEvents=!actionEvents! debug "
     set "debugOverlay=1"
+
+    %@addCoroutine% debugOverlay
 )
 
 :: TODO for absolute pixel position
@@ -68,7 +70,7 @@ if defined DEBUG (
 :: maybe subpixel position for physics calculation (clip)
 :: event and function queue (rework transition framework to use that)
 
-%@addCoroutine% shiftRight
+%@addCoroutine% fading 0 1
 
 %@sendCmd% go
 for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do set /a "t1=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100"
@@ -123,43 +125,15 @@ for /L %%. in ( infinite ) do (
     )
     %@drawOverAlpha% 48 48 charSprite[!charstate!]
 
-    %= EXECUTE FADING COMMAND =%
-    %= TODO rework this to use event system =%
-    if "!actionState:~0,4!" equ "fade" (
-        if !fadeOverTime! equ 0 set /a "fadeOverCount=0, fadeOverTime=0, fadeOff=3+5*!actionState:~4,1!, fadeMul=(!actionState:~5,1!*2-1), fadeAdd=fadeOff+((~!actionState:~5,1!+1)*3)"
-        for /L %%a in ( 0 1 3 ) do (
-            set /a "fadeStateFrom=fadeOff+%%a, fadeStateTo=fadeMul*fadeOverCount+fadeAdd+%%a"
-            for /F "tokens=1,2 delims=`" %%b in ("!fadeStateFrom!`!fadeStateTo!") do (
-                for /F "tokens=1,2 delims=`" %%d in ("!fadeLookup:~%%~b,1!`!fadeLookup:~%%~c,1!") do (
-                    for %%l in ( -1 %sHeightIter% %sHeight% ) do (
-                        set "line[%%l]=!line[%%l]:%%~d=%%~e!"
-                    )
-                )
-            )
-        )
-        set /a "fadeOverTime+=tDiff, fadeOverCount=fadeOverTime/10"
-        if !fadeOverCount! geq 4 (
-            set "fadeOverTime=0"
-            set "actionState=!actionStateNext!"
-        )
+    %= CALCULATE TIME DIFFERENCE AND FPS =%
+    for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
+        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
     )
 
     for %%a in ( !coroutines! ) do (
-        call :%%a
-    )
-
-    %= DEBUG OVERLAY =%
-    if "!debugOverlay!"== "1" (
-        set "debugCount=1"
-        for %%a in ( !debugOverlayList! ) do (
-            set "__debugTemp=                    !%%a!"
-            set "__debugName=%%a              "
-            set "debugOverlay[!debugCount!]=บ !__debugName:~0,14! ณ!__debugTemp:~-20! บ"
-            set /a "debugCount+=2"
+        for /f "tokens=1-5 delims=`" %%b in ("%%~a") do (
+            call :%%b %%c %%d %%e %%f
         )
-        set "debugOverlay[!debugOverlay[#]!]=ศออออออออออออออออออออออออออออออออออออออผ"
-        %@drawOver% 2 2 40 !debugOverlay[#]! debugOverlay
-        set "__debugTemp="
     )
 
     %= FLIP =%
@@ -260,6 +234,56 @@ for /L %%. in ( infinite ) do (
         if %#hasAction:?=cancel% set "actionState=map"
     )
 )
+
+:coro_debugOverlay
+if %#hasAction:?=debug% set /a "debugOverlay^=1"
+if "!debugOverlay!"=="1" (
+    set "debugCount=1"
+    for %%a in ( !debugOverlayList! ) do (
+        set "debugTemp=                    !%%a!"
+        set "debugName=%%a              "
+        set "debugOverlay[!debugCount!]=บ !debugName:~0,14! ณ!debugTemp:~-20! บ"
+        set /a "debugCount+=2"
+    )
+    set "debugOverlay[!debugOverlay[#]!]=ศออออออออออออออออออออออออออออออออออออออผ"
+    %@drawOver% 2 2 40 !debugOverlay[#]! debugOverlay
+    set "debugName="
+    set "debugTemp="
+    set "debugCount="
+)
+exit /B
+
+:coro_fading
+if not defined fadeOverTime set "fadeOverTime=0"
+set /a "fadeOff=3+5*%~1, fadeMul=(%~2*2-1), fadeAdd=fadeOff+((~%~2+1)*3)"
+set /a "fadeOverTime+=tDiff, fadeOverCount=fadeOverTime/10"
+if !fadeOverCount! geq 4 (
+    set "fadeOverTime="
+    set "fadeOverCount="
+    set "fadeOff="
+    set "fadeMul="
+    set "fadeStateFrom="
+    set "fadeAdd="
+    %@removeCoroutine% fading %~1 %~2
+    set "haltActionTranslation="
+    exit /B
+)
+for /L %%a in ( 0 1 3 ) do (
+    set /a "fadeStateFrom=fadeOff+%%a, fadeStateTo=fadeMul*fadeOverCount+fadeAdd+%%a"
+    for /F "tokens=1,2 delims=`" %%b in ("!fadeStateFrom!`!fadeStateTo!") do (
+        for /F "tokens=1,2 delims=`" %%d in ("!fadeLookup:~%%~b,1!`!fadeLookup:~%%~c,1!") do (
+            for %%l in ( -1 %sHeightIter% %sHeight% ) do (
+                set "line[%%l]=!line[%%l]:%%~d=%%~e!"
+            )
+        )
+    )
+)
+set "fadeOff="
+set "fadeMul="
+set "fadeStateFrom="
+set "fadeAdd="
+set "haltActionTranslation=1"
+exit /B
 
 :shiftRight
 set /a "posX+=1, remainder=posX %% 16"
