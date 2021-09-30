@@ -32,10 +32,10 @@ if !returnValue! equ 2 (
     set "datef.Year=^!datef.Date:~0,-17^!"
     set "dtf.Month=^!datef.Date:~-17,2^!"
     set "datef.Day=^!datef.Date:~-15,2^!"
-    set "datef.Hour=^!datef.Date:~-13,2^!"
-    set "datef.Minute=^!datef.Date:~-11,2^!"
-    set "datef.Second=^!datef.Date:~-9,2^!"
-    set "datef.CentiSecond=^!datef.Date:~-6,2^!"
+    set "datef.Hours=^!datef.Date:~-13,2^!"
+    set "datef.Minutes=^!datef.Date:~-11,2^!"
+    set "datef.Seconds=^!datef.Date:~-9,2^!"
+    set "datef.CentiSeconds=^!datef.Date:~-6,2^!"
 ) else (
     if "!datef.Month!"=="!datef.Day!" (
         set @datef.parseDateTime=!@parseDateTime! if "!datef.Month!"=="!datef.Day!"
@@ -44,10 +44,10 @@ if !returnValue! equ 2 (
     for %%a in (Year Month Day) do (
         set "datef.%%a=%%!datef.%%a!"
     )
-    set "datef.Hour=%%a"
-    set "datef.Minute=%%b"
-    set "datef.Second=%%c"
-    set "datef.CentiSecond=%%d"
+    set "datef.Hours=%%a"
+    set "datef.Minutes=%%b"
+    set "datef.Seconds=%%c"
+    set "datef.CentiSeconds=%%d"
 )
 
 (
@@ -55,10 +55,10 @@ if !returnValue! equ 2 (
     set "datef.Year=%datef.Year%"
     set "datef.Month=%datef.Month%"
     set "datef.Day=%datef.Day%"
-    set "datef.Hour=%datef.Hour%"
-    set "datef.Minute=%datef.Minute%"
-    set "datef.Second=%datef.Second%"
-    set "datef.CentiSecond=%datef.CentiSecond%"
+    set "datef.Hours=%datef.Hours%"
+    set "datef.Minutes=%datef.Minutes%"
+    set "datef.Seconds=%datef.Seconds%"
+    set "datef.CentiSeconds=%datef.CentiSeconds%"
     set "@datef.parseDateTime=%@datef.parseDateTime%"
     exit /B %returnValue%
 )
