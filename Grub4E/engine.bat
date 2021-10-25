@@ -43,7 +43,6 @@ set /a "posX*=tWidth, posY*=tHeight"
 
 %@setTitle% !gameTitle!
 if defined DEBUG (
-    %@log% setlevel DEBUG
     set "debugOverlay[#]=0"
     set "debugOverlayList="
     %@addDebugData% tDiff

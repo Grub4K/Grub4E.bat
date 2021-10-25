@@ -35,14 +35,14 @@ mode %dWidth%,%dHeight%
 set /a "hRes=(sWidth+2) * 3"
 
 :: @log  loglevel message
-:: @log  :END
-:: @log  :setlevel level
+:: @log  `quit`
+:: @log  `setlevel` level
 :::  sends commands to the logging module
 if not defined @log set "@log=>&%logStream% echo"
 
 set "eID=Grub4E"
 if defined DEBUG (
-    %@log% :setlevel DEBUG
+    %@log% setlevel DEBUG
     set "eID=%eID%:DEBUG"
 )
 
@@ -88,11 +88,7 @@ set "haltActionTranslation="
 
 set "@setTitle=title [!eID!]"
 
-:: TODO rework
-:: @transition transition number
-set @transition=for %%# in (1 2) do if %%#==2 (set "actionState=transition:!args!") else set /a args=
-
-:: Set fallback if nothing other cls has been defined
+:: Fallback if no other cls has been defined
 if not defined @cls set "@cls=cls"
 
 :: @sendCmd  command

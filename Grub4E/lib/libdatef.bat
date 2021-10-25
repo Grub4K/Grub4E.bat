@@ -17,8 +17,6 @@ if "!datef.Month!"=="!datef.Day!" (
 )
 
 set "datef.Lookup= "
-
-:: TODO make this produce unique tokens
 for /F "tokens=1-5 delims=:.,-\_/ " %%e in ("!date!") do (
     for %%b in ("%%e e" "%%f f" "%%g g" "%%h h" "%%k k") do (
         for /F "tokens=1,2" %%c in ("%%~b") do (
@@ -33,7 +31,6 @@ for /F "tokens=1-5 delims=:.,-\_/ " %%e in ("!date!") do (
         )
     )
 )
-
 
 for %%a in (Year Month Day) do (
     if not defined datef.%%a set "returnValue=2"

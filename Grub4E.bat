@@ -60,7 +60,7 @@ if errorlevel 1 (
     if defined loggingWindow echo Check the logging window
     set "fail=1"
 ) else if defined loggingWindow (
-    >>"%logFile%" echo :END
+    >>"%logFile%" echo quit
 )
 
 >>"%cmdFile%" echo quit
@@ -74,7 +74,8 @@ ping -n 1 localhost >NUL
 )
 
 if defined fail if defined loggingWindow (
-    >>"%logFile%" echo :END
+    >>"%logFile%" echo quit
     ping -n 2 localhost >NUL
+    %= TODO delete the logFile ?=%
 )
 exit /b 0

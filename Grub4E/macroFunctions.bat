@@ -39,6 +39,7 @@ for %%a in ( !%%~3! ) do (
         )
     )
 )
+set "__temp="
 
 
 :randomRange  [min:int] [max:int]

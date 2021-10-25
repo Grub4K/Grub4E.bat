@@ -30,14 +30,12 @@ if errorlevel 2 (
 ) else set "message="
 
 set "timeFormat=%datef.Year%-%datef.Month%-%datef.Day% %datef.Hours%:%datef.Minutes%:%datef.Seconds%,%datef.CentiSeconds%"
-:: TODO transition to use of %time% and %date%
 set @performLog=^
 for /F "tokens=1 delims= " %%a in ("!message!") do ^
-    if "!logLevels:%%a=!" neq "!logLevels!" (^
+    if "!logLevels:%%a=!" neq "!logLevels!" ^
         set "level=%%a   " ^&^
         set "message=!message:* =!" ^&^
-        %@datef.parseDateTime% (echo  %timeFormat% ^^^| !level:~0,7! ^^^| !message!)^
-    )
+        %@datef.parseDateTime% echo  %timeFormat% ^^^| !level:~0,7! ^^^| !message!
 
 setlocal EnableDelayedExpansion
 if defined message (
@@ -49,29 +47,27 @@ for /L %%. in () do (
     <&%logStream% set /p "message="
 
     if defined message (
-        if "!message:~0,1!" equ ":" (
-            if "!message!"==":END" (
-                set "message=INFO Terminated logging module"
-                %@performLog%
-                exit
-            ) else if "!message:~1,8!"=="setlevel" (
-                set "message=!message:* =!"
-                set "logLevels="
-                set "found="
-                for %%a in (
-                    "SILENT"
-                    "ERROR"
-                    "WARNING"
-                    "INFO"
-                    "DEBUG"
-                ) do (
-                    if not defined found set "logLevels=!logLevels!%%~a "
-                    if "%%~a"=="!message:* =!" set "found=1"
-                )
-                set "logLevels= !logLevels:* =!"
-                set "message=INFO Switched loglevel to !message:* =!"
-                %@performLog%
+        if "!message!"=="quit" (
+            set "message=INFO Terminated logging module"
+            %@performLog%
+            exit
+        ) else if "!message:~0,8!"=="setlevel" (
+            set "message=!message:* =!"
+            set "logLevels="
+            set "found="
+            for %%a in (
+                "SILENT"
+                "ERROR"
+                "WARNING"
+                "INFO"
+                "DEBUG"
+            ) do (
+                if not defined found set "logLevels=!logLevels!%%~a "
+                if "%%~a"=="!message:* =!" set "found=1"
             )
+            set "logLevels= !logLevels:* =!"
+            set "message=INFO Switched loglevel to !message:* =!"
+            %@performLog%
         ) else %@performLog%
     )
 )
