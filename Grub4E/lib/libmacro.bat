@@ -3,7 +3,7 @@
 ::
 :: Written by Grub4K (Grub4K#2417)
 ::
-:: Convert functions within a file into macros,optionally with arguments
+:: Convert functions within a file to macros, optionally with arguments
 ::
 :: Version History:
 ::  v1.0    Initial release
@@ -132,11 +132,11 @@ for /F "tokens=1 delims==" %%a in ('set __') do set "%%a="
 exit /B 0
 
 :__print_help
-echo:!__filename!  [options] ^<filename^> [filename [...]]
-echo:
-echo:  This script requires delayed expansion enabled at startup
-echo:
-echo:  -g / --generate-help      generate and print the help for each library file
-echo:  -# / --progress           show progress indicator, one `.` per processed input line
-echo:  -h / --help               print this help and exit
+echo(!__filename!  [options] ^<filename^> [filename [...]]
+echo(
+echo(  This script requires delayed expansion enabled at startup
+echo(
+echo(  -g / --generate-help      generate and print the help for each library file
+echo(  -# / --progress           show progress indicator, one `.` per processed input line
+echo(  -h / --help               print this help and exit
 exit /B

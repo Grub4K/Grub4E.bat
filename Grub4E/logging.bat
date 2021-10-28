@@ -7,7 +7,7 @@
 :: Reads logging input stream and pretty prints these.
 :: It respects the current loglevel and exists to have 2 outputs and
 :: as to not slow down the tight main loop.
-:: Accepted input is either ":END" ":setlevel <level>" or "<level> <message>"
+:: Accepted input is either "quit" "setlevel <level>" or "<level> <message>"
 ::
 ::
 :: This Source Code Form is subject to the terms of the Mozilla Public
