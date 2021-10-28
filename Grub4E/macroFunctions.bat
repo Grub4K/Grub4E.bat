@@ -43,10 +43,11 @@ set "__temp="
 
 
 :randomRange  [min:int] [max:int]
+:: TODO rework this shit capping alg
 if "%2" equ "" (
-    set /a "rand=((random_x32>>32&1)*-2+1)*random_x32 + %1 + 0"
-) else set /a "rand=((random_x32>>32&1)*-2+1)*random_x32 %% (%2 - min + 1) + %1 + 0"
-set /a "random_x32^=random_x32 << 13, random_x32^=random_x32 >> 17, random_x32^=random_x32 << 5"
+    set /a "?=(random_x32 & 0x7FFFFFFF) + (%1+0)"
+) else set /a "?=(random_x32 & 0x7FFFFFFF) %% (%2 + 1 - (%1+0)) + (%1+0)"
+set /a "random_x32^=random_x32 << 13, random_x32^=((random_x32&0x7FFFFFFF)>>17) | ((random_x32>>17)&0x4000), random_x32^=random_x32 << 5"
 
 :strLen  <str:var> <rtn:Var>
 set "__s=A!%%~1!"
