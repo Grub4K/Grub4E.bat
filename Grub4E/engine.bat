@@ -23,6 +23,9 @@ set "coroutines= "
 set "charState=1"
 set "bgStale=1"
 set "actionState=map"
+set "renderBuffer= dynSprite`50`50`00 "
+set "renderBufferAlpha= "
+
 
 :: TODO have first loader
 %@setTitle% Loading... [ Keybinds ]
@@ -46,14 +49,13 @@ if defined DEBUG (
     set "debugOverlay[#]=0"
     set "debugOverlayList="
     %@addDebugData% tDiff
-    %@addDebugData% fps
-    %@addDebugData% actionState
     %@addDebugData% posX
-    %@addDebugData% posY
     %@addDebugData% shiftX
+    %@addDebugData% posY
     %@addDebugData% shiftY
     %@addDebugData% coroutines
-    %@addDebugData% fadeOverCount
+    %@addDebugData% renderBuffer
+    %@addDebugData% dynSpriteRender
 
     set "debugOverlay[0]=ษออออออออออ DEBUG OVERLAY อออออออออออออป"
     set "keybind[debug]=#"
@@ -101,11 +103,9 @@ for /L %%. in ( infinite ) do (
             set "line[%%l]=!lineBg[%%l]!"
         )
     )
-    %=TODO implement dynamic sprite drawing =%
-
-    set /a "shiftX=posX %% tWidth, shiftY=posY %% tHeight"
 
     %= SCROLLING VIEWPORT SHIFT =%
+    set /a "shiftX=posX %% tWidth, shiftY=posY %% tHeight"
     if not "!shiftX!"=="0" for %%x in ("!shiftX!") do (
         for %%a in ( -1 %sHeightIter%) do (
             set "line[%%a]=!line[%%a]:~%%~x!!line[%%a]:~0,%%~x!"
@@ -120,6 +120,18 @@ for /L %%. in ( infinite ) do (
                 set "line[%%a]=!__tempLine!!line[%%a]:~0,-%%~y!"
                 set "__tempLine=!__tempLine2!"
             )
+        )
+    )
+
+    %= DYNAMIC SPRITE DRAWING =%
+    for %%a in (!renderBuffer!) do (
+        for /F "tokens=1-4 delims=`" %%b in ("%%a") do (
+            %@drawSprite% %%c %%d %%e %%b
+        )
+    )
+    for %%a in (!renderBufferAlpha!) do (
+        for /F "tokens=1-4 delims=`" %%b in ("%%a") do (
+            %@drawSpriteAlpha% %%c %%d %%e %%b
         )
     )
     %@drawOverAlpha% 48 48 charSprite[!charstate!]

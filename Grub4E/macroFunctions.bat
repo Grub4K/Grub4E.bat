@@ -26,6 +26,21 @@ for /L %%a in ( 0 1 %%~4 ) do (
     )
 )
 
+:drawSprite  <x:int> <y:int> <sprite:int>
+:: draws a sprite over a specified portion of the screen
+:: uses the currently loaded sprite index
+set /a "%%4Render=0, y=%2-posY+tHeight, yLimit=tHeight*(sHeight+2), x=%1-posX+tWidth, xLimit=tWidth*(sWidth+2)"
+if !y! geq 0 if !y! leq !yLimit! if !x! geq 0 if !x! leq !xLimit! (
+    for %%a in (!tHeightIter!) do (
+        set /a "y=%2+%%a-posY, linenum=y/tHeight, linestart=(y%%tHeight)*(tWidth*(sWidth+2))+tWidth+%1-posX, lineend=linestart+tWidth, texstart=%%a*tWidth"
+        for /f "tokens=1-5" %%b in ("!linenum! !linestart! !lineend! !texstart! !tWidth!") do (
+            set "line[%%b]=!line[%%b]:~0,%%c!!spriteset[%%3]:~%%e,%%f!!line[%%b]:~%%d!"
+        )
+    )
+    set "%%4Render=1"
+)
+
+
 :drawOverAlpha  <x:int> <y:int> <data:array[textureAlpha]>
 :: draw data over a specified portion of the screen.
 :: Input has to be a texture prepared using :texconvertAlpha
