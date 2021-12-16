@@ -23,9 +23,22 @@ if not "!"=="" (
     exit /B 3
 )
 
-set ^"__LF=^
+set ^"\n=^
 %= these lines are required =%
 ^" do not remove
+
+set __@strLen=for %%. in (1 2) do if %%.==2 (!\n!^
+    for /f "tokens=1,2 delims=, " %%1 in ("^!argv^!") do (!\n!^
+        set "__s=#^!%%~1^!"!\n!^
+        set "%%~2=0"!\n!^
+        for %%P in (4096 2048 1024 512 256 128 64 32 16 8 4 2 1) do (!\n!^
+            if "^!__s:~%%P,1^!" neq "" (!\n!^
+                set /a "%%~2+=%%P"!\n!^
+                set "__s=^!__s:~%%P^!"!\n!^
+            )!\n!^
+        )!\n!^
+    )!\n!^
+) else set argv=,
 
 set "__filename=%~nx0"
 
@@ -33,6 +46,7 @@ set "__print_help="
 set "__progress="
 set "__generate_help="
 set "__skip_flags="
+set "__replace_vars="
 set "__files="
 
 :read_flags
@@ -59,6 +73,12 @@ if not defined __parse_flags (
     for %%a in ("-progress" "#") do if defined __search_flag (
         if "%~1"=="-%%~a" (
             set "__progress=."
+            set "__search_flag="
+        )
+    )
+    for %%a in ("-replace-variables" "v") do if defined __search_flag (
+        if "%~1"=="-%%~a" (
+            set "__replace_vars=1"
             set "__search_flag="
         )
     )
@@ -114,8 +134,48 @@ for %%A in (!__files!) do (
                     )
                 ) else (
                     if defined __macroname (
+                        %__@strLen% __inline __inline_length
+                        set "__inline_sub=!__inline:%%=!"
+                        %__@strLen% __inline_sub __inline_sub_length
+                        set /a "__iterations=(__inline_length - __inline_sub_length) / 2"
+                        set "__line="
+                        if defined __replace_vars (
+                            for /L %%@ in ( 1 1 !__iterations! ) do (
+                                if defined __inline (
+                                    set "__process_line=!__inline:*%%=!"
+                                    %__@strLen% __process_line __process_length
+                                    set /a "__sublength=__inline_length - __process_length - 1, __inline_length-=__sublength+1"
+                                    for %%a in ("!__sublength!") do set "__line=!__line!!__inline:~0,%%~a!"
+                                    set "__inline=!__process_line!"
+                                    if "!__inline:~0,1!"=="%%" (
+                                        set "__line=!__line!%%"
+                                        set "__inline=!__inline:~1!"
+                                        set /a "__inline_length-=1"
+                                    ) else (
+                                        set "__process_line=!__inline:*%%=!"
+                                        %__@strLen% __process_line __process_length
+                                        set /a "__sublength=__inline_length - __process_length - 1, __inline_length-=__sublength+1"
+                                        for %%a in ("!__sublength!") do (
+                                            for %%b in ("!__inline:~0,%%~a!") do (
+                                                set "__line=!__line!!%%~b!"
+                                            )
+                                        )
+                                        set "__inline=!__process_line!"
+                                    )
+                                ) else (
+                                    set "__line=!__line!!__inline!"
+                                    set "__inline="
+                                )
+                            )
+                        ) else (
+                            set "__line=!__inline:%%%%=%%!"
+                            set "__inline="
+                        )
+                        if defined __inline (
+                            set "__line=!__line!!__inline!"
+                        )
                         for %%a in ("!__macroname!") do (
-                            set "%%~a=!%%~a!!__inline:%%%%=%%!!__LF!"
+                            set "%%~a=!%%~a!!\n!!__line!"
                         )
                     )
                 )
@@ -136,7 +196,8 @@ echo(!__filename!  [options] ^<filename^> [filename [...]]
 echo(
 echo(  This script requires delayed expansion enabled at startup
 echo(
-echo(  -g / --generate-help      generate and print the help for each library file
 echo(  -# / --progress           show progress indicator, one `.` per processed input line
+echo(  -v / --replace-variables  replace percent-variables with their corresponding value
+echo(  -g / --generate-help      generate and print the help for each library file
 echo(  -h / --help               print this help and exit
 exit /B
