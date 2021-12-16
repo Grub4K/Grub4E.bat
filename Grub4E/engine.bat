@@ -25,7 +25,7 @@ set "bgStale=1"
 set "actionState=map"
 set "renderBuffer= dynSprite`50`50`00 "
 set "renderBufferAlpha= "
-
+set "fps=0"
 
 :: TODO have first loader
 %@setTitle% Loading... [ Keybinds ]
@@ -49,6 +49,7 @@ if defined DEBUG (
     set "debugOverlay[#]=0"
     set "debugOverlayList="
     %@addDebugData% tDiff
+    %@addDebugData% fps
     %@addDebugData% posX
     %@addDebugData% shiftX
     %@addDebugData% posY
@@ -138,7 +139,10 @@ for /L %%. in ( infinite ) do (
 
     %= CALCULATE TIME DIFFERENCE AND FPS =%
     for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
-        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, fps=100/tDiff, t1=t2"
+        set /a "t2=(((1%%a*60)+1%%b)*60+1%%c)*100+1%%d-36610100, tDiff=t2-t1, tDiff+=((~(tDiff&(1<<31))>>31)+1)*8640000, t1=t2, tDiffAccum+=tDiff, frames+=1"
+    )
+    if !tDiffAccum! geq 100 (
+        set /a "fps=frames*100/tDiffAccum, tDiffAccum=0, frames=0"
     )
 
     for %%a in ( !coroutines! ) do (
