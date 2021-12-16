@@ -36,10 +36,10 @@ call :loadFontset  data\sprites\font.txt
 
 %@setTitle% Loading... [ Sprites  ]
 call :loadCharacter  data\sprites\charas.txt
-call :loadSpriteset  data\sprites\spriteset.txt
+call :loadSpriteset  data\sprites\tile1.png.txt
 
 %@setTitle% Loading... [ Map      ]
-call :loadMap data\maps\map.txt
+call :loadMap data\maps\map1.txt
 
 set /a "posX=2, posY=2"
 set /a "posX*=tWidth, posY*=tHeight"
@@ -134,7 +134,7 @@ for /L %%. in ( infinite ) do (
             %@drawSpriteAlpha% %%c %%d %%e %%b
         )
     )
-    %@drawOverAlpha% 48 48 charSprite[!charstate!]
+    %@drawOverAlpha% 48 57 charSprite[!charstate!]
 
     %= CALCULATE TIME DIFFERENCE AND FPS =%
     for /f "tokens=1-4 delims=:.," %%a in ("!time: =0!") do (
