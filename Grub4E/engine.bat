@@ -158,11 +158,11 @@ for /L %%. in ( infinite ) do (
     )
 
     %= PROCESS INPUT =%
-    set "keyList="
+    set "keyList= "
     for /L %%: in ( 1 1 %MAXSIMULTKEYS% ) do (
         set "inKey="
         <&%keyStream% set /p "inKey="
-        if defined inKey set "keyList=!keyList!!inKey:~0,-1!"
+        if defined inKey set "keyList=!keyList!!inKey:~0,-1! "
     )
     %= Clear action events =%
     %= TODO  rework to be instant lookup =%
@@ -170,11 +170,20 @@ for /L %%. in ( infinite ) do (
     %= translate keypresses into action events =%
     if defined keyList (
         %= TEMP emergency quit button =%
-        if "!keyList!" neq "!keyList:.=!" exit 0
+        if "!keyList!" neq "!keyList: . =!" exit 0
+        if "!keyList!" neq "!keyList: i =!" set /a "posY+=1, bgStale=1"
+        if "!keyList!" neq "!keyList: j =!" set /a "posX-=1, bgStale=1"
+        if "!keyList!" neq "!keyList: k =!" set /a "posY-=1, bgStale=1"
+        if "!keyList!" neq "!keyList: l =!" set /a "posX+=1, bgStale=1"
+        if "!keyList!" neq "!keyList: o =!" (
+            if "!renderBuffer: dynSprite`50`50`00 = !"=="!renderBuffer!" (
+                set "renderBuffer=!renderBuffer!dynSprite`50`50`00 "
+            ) else set "renderBuffer=!renderBuffer: dynSprite`50`50`00 = !"
+        )
         if not defined haltActionTranslation (
             for %%a in ( %actionEvents% ) do (
                 for %%b in ("!keybind[%%a]!") do (
-                    if "!keyList!" neq "!keyList:%%~b=!" (
+                    if "!keyList!" neq "!keyList: %%~b =!" (
                         set "actions=!actions!%%a "
                     )
                 )
